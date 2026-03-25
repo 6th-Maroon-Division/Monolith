@@ -94,6 +94,40 @@ public sealed partial class RoofOverlay : Overlay
         worldHandle.RenderInRenderTarget(target,
             () =>
             {
+                var invMatrix = target.GetWorldToLocalMatrix(eye, scale);
+
+                for (var i = 0; i < _grids.Count; i++)
+                {
+                    var grid = _grids[i];
+
+                    if (!_entManager.TryGetComponent(grid.Owner, out ImplicitRoofComponent? roof))
+                        continue;
+
+                    var gridMatrix = _xformSystem.GetWorldMatrix(grid.Owner);
+                    var matty = Matrix3x2.Multiply(gridMatrix, invMatrix);
+
+                    worldHandle.SetTransform(matty);
+
+                    var tileEnumerator = _mapSystem.GetTilesEnumerator(grid.Owner, grid, bounds);
+                    var color = roof.Color;
+
+                    while (tileEnumerator.MoveNext(out var tileRef))
+                    {
+                        var local = _lookup.GetLocalBounds(tileRef, grid.Comp.TileSize);
+                        worldHandle.DrawRect(local, color);
+                    }
+
+                    // Don't need it for the next stage.
+                    _grids.RemoveAt(i);
+                    i--;
+                }
+            }, null);
+
+        worldHandle.RenderInRenderTarget(target,
+            () =>
+            {
+                var invMatrix = target.GetWorldToLocalMatrix(eye, scale);
+
                 foreach (var grid in _grids)
                 {
                     if (!_entManager.TryGetComponent(grid.Owner, out RoofComponent? roof))
@@ -107,7 +141,7 @@ public sealed partial class RoofOverlay : Overlay
                     var tileEnumerator = _mapSystem.GetTilesEnumerator(grid.Owner, grid, bounds);
                     var roofEnt = (grid.Owner, grid.Comp, roof);
 
-                    // Due to stencilling we essentially draw on unrooved tiles
+                    // Due to stencilling we essentially draw on unroofed tiles
                     while (tileEnumerator.MoveNext(out var tileRef))
                     {
                         var color = _roof.GetColor(roofEnt, tileRef.GridIndices);
