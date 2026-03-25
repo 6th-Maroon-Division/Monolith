@@ -16,6 +16,7 @@ ledger-no-balance = N/A
 ledger-tab-Frontier = Colonial Outpost
 ledger-tab-Nfsd = TSFMC
 ledger-tab-Medical = Medical Dispatch
+ledger-tab-Edison = Edison
 ledger-tab-BlackMarket = Black Market
 # Fallback, if this displays, something's wrong.
 ledger-tab-Unknown = Unknown
@@ -37,6 +38,7 @@ ledger-entry-type-MedicalPenalties = Drug Control Fines
 ledger-entry-type-BluespaceReward = Guard Duty Rewards
 ledger-entry-type-MedicalBountyTax = Medical Bounties
 ledger-entry-type-AntiSmugglingBonus = Anti-Smuggling
+ledger-entry-type-PowerTransmission = Energy Exports
 ledger-entry-type-StationDepositFines = Fines Deposited
 ledger-entry-type-StationDepositDonation = Donations
 ledger-entry-type-StationDepositAssetsSold = Sold Assets
