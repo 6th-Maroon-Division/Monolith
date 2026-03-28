@@ -49,6 +49,7 @@ public sealed partial class StationAiSystem : SharedStationAiSystem
     public override void Initialize()
     {
         base.Initialize();
+        InitializeGaslock();
 
         SubscribeLocalEvent<ExpandICChatRecipientsEvent>(OnExpandICChatRecipients);
     }
