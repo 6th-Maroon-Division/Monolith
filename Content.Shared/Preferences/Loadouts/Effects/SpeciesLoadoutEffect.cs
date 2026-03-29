@@ -11,10 +11,13 @@ public sealed partial class SpeciesLoadoutEffect : LoadoutEffect
     [DataField(required: true)]
     public List<ProtoId<SpeciesPrototype>> Species = new();
 
+    [DataField]
+    public bool Inverted;
+
     public override bool Validate(HumanoidCharacterProfile profile, RoleLoadout loadout, ICommonSession? session, IDependencyCollection collection,
         [NotNullWhen(false)] out FormattedMessage? reason)
     {
-        if (Species.Contains(profile.Species))
+        if (Species.Contains(profile.Species) != Inverted)
         {
             reason = null;
             return true;
