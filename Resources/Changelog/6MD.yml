@@ -1,3 +1,18 @@
-Name: 6MD
-Order: 0
-Entries: []
+Entries:
+- author: chilla55
+  changes:
+    - type: Add
+      message: Added a dedicated 6MD changelog source and in-game changelog tab.
+    - type: Tweak
+      message: >-
+        Changelog tab ordering now shows 6MD first, then Monolith, then
+        Upstream.
+    - type: Tweak
+      message: PR changelog automation now writes to the 6MD changelog file.
+    - type: Remove
+      message: >-
+        Disabled automatic Discord changelog publish step in the publish
+        workflow.
+  id: 1
+  time: '2026-03-30T19:22:13.0000000+00:00'
+  url: https://github.com/6th-Maroon-Division/Monolith/pull/3
