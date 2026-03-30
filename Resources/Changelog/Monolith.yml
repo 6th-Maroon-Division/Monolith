@@ -19151,3 +19151,10 @@ Entries:
   id: 2111
   time: '2026-03-30T16:15:38.0000000+00:00'
   url: https://github.com/Monolith-Station/Monolith/pull/3514
+- author: lopsidedmanboobs
+  changes:
+    - type: Tweak
+      message: Conflict rules 1 & 2 changed and clarifications added
+  id: 2112
+  time: '2026-03-30T16:56:00.0000000+00:00'
+  url: https://github.com/Monolith-Station/Monolith/pull/3643
