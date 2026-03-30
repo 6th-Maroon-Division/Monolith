@@ -19112,3 +19112,12 @@ Entries:
   id: 2106
   time: '2026-03-29T15:49:12.0000000+00:00'
   url: https://github.com/Monolith-Station/Monolith/pull/3598
+- author: chilla55
+  changes:
+    - type: Fix
+      message: >-
+        Fixed several `_NF` prototype compatibility issues causing missing
+        localization and invalid field errors.
+  id: 2107
+  time: '2026-03-29T20:36:15.0000000+00:00'
+  url: https://github.com/6th-Maroon-Division/Monolith/pull/1
