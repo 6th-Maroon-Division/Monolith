@@ -16,3 +16,18 @@ Entries:
   id: 1
   time: '2026-03-30T19:22:13.0000000+00:00'
   url: https://github.com/6th-Maroon-Division/Monolith/pull/3
+- author: chilla55
+  changes:
+    - type: Add
+      message: >-
+        Added gas purchase consoles, purchase points, and purchase ports for
+        buying gas into pipe networks.
+    - type: Tweak
+      message: Added a gas purchase setup to Edison Power Plant.
+    - type: Tweak
+      message: >-
+        Added purchase-point examine diagnostics and a dedicated purchase-point
+        sprite set.
+  id: 2
+  time: '2026-03-31T15:09:54.0000000+00:00'
+  url: https://github.com/6th-Maroon-Division/Monolith/pull/4
