@@ -395,6 +395,65 @@
   - type: MarketModifier
     mod: 0.5
 
+- type: entity
+  parent: [ BaseStructureIndestructible, BaseStructureDisableToolUse, BaseComputer ]
+  id: GasPurchaseConsole
+  name: gas purchase console
+  description: Buys gas and routes it into a linked gas purchase port or point.
+  components:
+  - type: Sprite
+    sprite: _NF/Structures/Machines/computers.rsi
+    layers:
+    - map: ["computerLayerBody"]
+      state: computer
+    - map: ["computerLayerKeyboard"]
+      state: generic_keyboard
+    - map: ["computerLayerScreen"]
+      state: gas_sale_point
+    - map: ["computerLayerKeys"]
+      state: atmos_key
+  - type: GasPurchaseConsole
+  - type: ActivatableUI
+    key: enum.GasPurchaseConsoleUiKey.Key
+  - type: UserInterface
+    interfaces:
+      enum.GasPurchaseConsoleUiKey.Key:
+        type: GasPurchaseConsoleBoundUserInterface
+      enum.WiresUiKey.Key:
+        type: WiresBoundUserInterface
+  - type: Computer
+    board: Null
+  - type: MarketModifier
+    mod: 1
+
+- type: entity
+  parent: GasPurchaseConsole
+  id: GasPurchaseConsoleVeryHigh
+  components:
+  - type: MarketModifier
+    mod: 1.5
+
+- type: entity
+  parent: GasPurchaseConsole
+  id: GasPurchaseConsoleHigh
+  components:
+  - type: MarketModifier
+    mod: 1.25
+
+- type: entity
+  parent: GasPurchaseConsole
+  id: GasPurchaseConsoleLow
+  components:
+  - type: MarketModifier
+    mod: 0.75
+
+- type: entity
+  parent: GasPurchaseConsole
+  id: GasPurchaseConsoleVeryLow
+  components:
+  - type: MarketModifier
+    mod: 0.5
+
 # Station Traffic Controller consoles
 - type: entity
   id: BaseComputerTraffic

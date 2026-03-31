@@ -1,0 +1,17 @@
+gas-purchase-console-menu-title = Gas purchase console
+gas-purchase-menu-gas-label = Gas:
+gas-purchase-menu-moles-label = Moles:
+gas-purchase-menu-price-label = Purchase Price:
+gas-purchase-menu-linked-points-label = Linked Points:
+gas-purchase-menu-no-value = N/A
+gas-purchase-refresh-button = Refresh
+gas-purchase-buy-button = Purchase
+gas-purchase-console-no-points = No gas purchase point is linked to this console.
+gas-purchase-console-invalid-selection = Enter a valid gas and a positive mole amount.
+gas-purchase-console-insufficient-funds = You do not have enough spesos to buy that gas.
+gas-purchase-point-examine-stored = Stored gas: {GASQUANTITY($value)}
+gas-purchase-point-examine-unpowered = Output status: unpowered.
+gas-purchase-point-examine-no-node = Output status: outlet node not found.
+gas-purchase-point-examine-no-pipe-net = Output status: no valid connected pipe net.
+gas-purchase-point-examine-empty = Output status: ready, but storage is empty.
+gas-purchase-point-examine-ready = Output status: ready to transfer gas into the connected pipe net.
