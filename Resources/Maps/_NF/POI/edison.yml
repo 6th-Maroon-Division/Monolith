@@ -19989,6 +19989,12 @@ entities:
     - type: Transform
       pos: -2.5,13.5
       parent: 2
+  - uid: 5000
+    components:
+    - type: Transform
+      rot: 3.141592653589793 rad
+      pos: 3.5,13.5
+      parent: 2
 - proto: GasPressurePumpOnMax
   entities:
   - uid: 1108
@@ -20023,6 +20029,25 @@ entities:
       parent: 2
     - type: AtmosPipeColor
       color: '#990000FF'
+- proto: GasPurchaseConsoleHigh
+  entities:
+  - uid: 3052
+    components:
+    - type: Transform
+      pos: 2.5,11.5
+      parent: 2
+    - type: ApcPowerReceiver
+      powerLoad: 5
+    - type: Battery
+      startingCharge: 0
+- proto: GasPurchasePoint
+  entities:
+  - uid: 2688
+    components:
+    - type: Transform
+      rot: 3.141592653589793 rad
+      pos: 3.5,12.5
+      parent: 2
 - proto: GasRecycler
   entities:
   - uid: 1948
