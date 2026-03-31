@@ -1,5 +1,7 @@
+using System.Linq;
 using System.Numerics;
 using Content.Server._NF.Atmos.Components;
+using Content.Server._NF.Bank;
 using Content.Server.Administration.Logs;
 using Content.Server.Atmos.EntitySystems;
 using Content.Server.Atmos.Piping.Components;
@@ -14,11 +16,13 @@ using Content.Shared._NF.Atmos.Components;
 using Content.Shared._NF.Atmos.Events;
 using Content.Shared._NF.Atmos.Prototypes;
 using Content.Shared._NF.Atmos.Systems;
+using Content.Shared.Popups;
 using Content.Shared._NF.Atmos.Visuals;
 using Content.Shared.Atmos;
 using Content.Shared.Atmos.Piping.Binary.Components;
 using Content.Shared._NF.Bank.Components;
 using Content.Shared.Database;
+using Content.Shared.Examine;
 using Content.Shared.Power;
 using Robust.Server.Audio;
 using Robust.Server.GameObjects;
@@ -37,7 +41,9 @@ public sealed class GasDepositSystem : SharedGasDepositSystem
     [Dependency] private readonly AtmosphereSystem _atmosphere = default!;
     [Dependency] private readonly AudioSystem _audio = default!;
     [Dependency] private readonly IAdminLogManager _adminLog = default!;
+    [Dependency] private readonly BankSystem _bankSystem = default!;
     [Dependency] private readonly IPrototypeManager _prototype = default!;
+    [Dependency] private readonly SharedPopupSystem _popup = default!;
     [Dependency] private readonly IRobustRandom _random = default!;
     [Dependency] private readonly NodeContainerSystem _nodeContainer = default!;
     [Dependency] private readonly StackSystem _stack = default!;
@@ -70,10 +76,18 @@ public sealed class GasDepositSystem : SharedGasDepositSystem
         SubscribeLocalEvent<GasDepositExtractorComponent, GasPressurePumpToggleStatusMessage>(OnToggleStatusMessage);
 
         SubscribeLocalEvent<GasSalePointComponent, AtmosDeviceUpdateEvent>(OnSalePointUpdate);
+        SubscribeLocalEvent<GasPurchasePointComponent, AtmosDeviceUpdateEvent>(OnPurchasePointUpdate);
+        SubscribeLocalEvent<GasPurchasePointComponent, ExaminedEvent>(OnPurchasePointExamined);
 
         SubscribeLocalEvent<GasSaleConsoleComponent, BoundUIOpenedEvent>(OnConsoleUiOpened);
         SubscribeLocalEvent<GasSaleConsoleComponent, GasSaleSellMessage>(OnConsoleSell);
         SubscribeLocalEvent<GasSaleConsoleComponent, GasSaleRefreshMessage>(OnConsoleRefresh);
+
+        SubscribeLocalEvent<GasPurchaseConsoleComponent, BoundUIOpenedEvent>(OnPurchaseConsoleUiOpened);
+        SubscribeLocalEvent<GasPurchaseConsoleComponent, GasPurchaseRefreshMessage>(OnPurchaseConsoleRefresh);
+        SubscribeLocalEvent<GasPurchaseConsoleComponent, GasPurchaseSelectGasMessage>(OnPurchaseConsoleSelectGas);
+        SubscribeLocalEvent<GasPurchaseConsoleComponent, GasPurchaseSetMolesMessage>(OnPurchaseConsoleSetMoles);
+        SubscribeLocalEvent<GasPurchaseConsoleComponent, GasPurchaseMessage>(OnPurchaseConsolePurchase);
     }
 
     private void OnExtractorMapInit(Entity<GasDepositExtractorComponent> ent, ref MapInitEvent args)
@@ -254,9 +268,79 @@ public sealed class GasDepositSystem : SharedGasDepositSystem
         UpdateConsoleInterface(ent);
     }
 
+    private void OnPurchaseConsoleUiOpened(Entity<GasPurchaseConsoleComponent> ent, ref BoundUIOpenedEvent args)
+    {
+        UpdatePurchaseConsoleInterface(ent);
+    }
+
     private void OnConsoleRefresh(Entity<GasSaleConsoleComponent> ent, ref GasSaleRefreshMessage args)
     {
         UpdateConsoleInterface(ent);
+    }
+
+    private void OnPurchaseConsoleRefresh(Entity<GasPurchaseConsoleComponent> ent, ref GasPurchaseRefreshMessage args)
+    {
+        UpdatePurchaseConsoleInterface(ent);
+    }
+
+    private void OnPurchaseConsoleSelectGas(Entity<GasPurchaseConsoleComponent> ent, ref GasPurchaseSelectGasMessage args)
+    {
+        if (args.GasId < 0 || args.GasId >= Atmospherics.TotalNumberOfGases)
+            return;
+
+        ent.Comp.SelectedGasId = args.GasId;
+        UpdatePurchaseConsoleInterface(ent);
+    }
+
+    private void OnPurchaseConsoleSetMoles(Entity<GasPurchaseConsoleComponent> ent, ref GasPurchaseSetMolesMessage args)
+    {
+        ent.Comp.PurchaseAmount = float.Clamp(args.Moles, 0f, ent.Comp.MaxPurchaseMoles);
+        UpdatePurchaseConsoleInterface(ent);
+    }
+
+    private void OnPurchaseConsolePurchase(Entity<GasPurchaseConsoleComponent> ent, ref GasPurchaseMessage args)
+    {
+        if (args.Actor is not { Valid: true } actor)
+            return;
+
+        var xform = Transform(ent);
+        if (xform.GridUid is not { } gridUid)
+        {
+            UpdatePurchaseConsoleInterface(ent);
+            return;
+        }
+
+        var points = GetNearbyPurchasePoints(ent, gridUid);
+        if (points.Count == 0)
+        {
+            _popup.PopupEntity(Loc.GetString("gas-purchase-console-no-points"), ent, actor);
+            _audio.PlayPvs(ent.Comp.ErrorSound, ent);
+            UpdatePurchaseConsoleInterface(ent);
+            return;
+        }
+
+        if (!TryGetSanitizedPurchaseSelection(ent, out var gasId, out var moles, out var price))
+        {
+            _popup.PopupEntity(Loc.GetString("gas-purchase-console-invalid-selection"), ent, actor);
+            _audio.PlayPvs(ent.Comp.ErrorSound, ent);
+            UpdatePurchaseConsoleInterface(ent);
+            return;
+        }
+
+        if (!_bankSystem.TryBankWithdraw(actor, price))
+        {
+            _popup.PopupEntity(Loc.GetString("gas-purchase-console-insufficient-funds"), ent, actor);
+            _audio.PlayPvs(ent.Comp.ErrorSound, ent);
+            UpdatePurchaseConsoleInterface(ent);
+            return;
+        }
+
+        var mixture = new GasMixture();
+        mixture.SetMoles(gasId, moles);
+        _atmosphere.Merge(points[0].Comp.GasStorage, mixture);
+
+        _audio.PlayPvs(ent.Comp.ApproveSound, ent);
+        UpdatePurchaseConsoleInterface(ent);
     }
 
     private void OnConsoleSell(Entity<GasSaleConsoleComponent> ent, ref GasSaleSellMessage args)
@@ -308,6 +392,44 @@ public sealed class GasDepositSystem : SharedGasDepositSystem
             new GasSaleConsoleBoundUserInterfaceState((int)amount, mixture, mixture.TotalMoles > 0));
     }
 
+    private void UpdatePurchaseConsoleInterface(Entity<GasPurchaseConsoleComponent> ent)
+    {
+        if (Transform(ent).GridUid is not { } gridUid)
+        {
+            UI.SetUiState(ent.Owner,
+                GasPurchaseConsoleUiKey.Key,
+                new GasPurchaseConsoleBoundUserInterfaceState([], 0, ent.Comp.PurchaseAmount, 0, 0, false));
+            return;
+        }
+
+        var availableGasIds = Enumerable.Range(0, Atmospherics.TotalNumberOfGases).ToArray();
+        if (availableGasIds.Length == 0)
+        {
+            UI.SetUiState(ent.Owner,
+                GasPurchaseConsoleUiKey.Key,
+                new GasPurchaseConsoleBoundUserInterfaceState([], 0, ent.Comp.PurchaseAmount, 0, 0, false));
+            return;
+        }
+
+        if (!availableGasIds.Contains(ent.Comp.SelectedGasId))
+            ent.Comp.SelectedGasId = availableGasIds[0];
+
+        ent.Comp.PurchaseAmount = float.Clamp(ent.Comp.PurchaseAmount, 0f, ent.Comp.MaxPurchaseMoles);
+
+        var linkedPoints = GetNearbyPurchasePoints(ent, gridUid).Count;
+        var canPurchase = TryGetSanitizedPurchaseSelection(ent, out var gasId, out _, out var price) && linkedPoints > 0;
+
+        UI.SetUiState(ent.Owner,
+            GasPurchaseConsoleUiKey.Key,
+            new GasPurchaseConsoleBoundUserInterfaceState(
+                availableGasIds,
+                gasId,
+                ent.Comp.PurchaseAmount,
+                price,
+                linkedPoints,
+                canPurchase));
+    }
+
     private void GetNearbyMixtures(EntityUid consoleUid, EntityUid gridUid, out GasMixture mixture, out double value)
     {
         mixture = new GasMixture();
@@ -318,6 +440,28 @@ public sealed class GasDepositSystem : SharedGasDepositSystem
         }
 
         value = _atmosphere.GetPriceNoPurity(mixture); // Mono - No purity penalty
+    }
+
+    private bool TryGetSanitizedPurchaseSelection(
+        Entity<GasPurchaseConsoleComponent> ent,
+        out int gasId,
+        out float moles,
+        out int price)
+    {
+        gasId = int.Clamp(ent.Comp.SelectedGasId, 0, Atmospherics.TotalNumberOfGases - 1);
+        moles = float.Clamp(ent.Comp.PurchaseAmount, 0f, ent.Comp.MaxPurchaseMoles);
+        price = 0;
+
+        if (moles <= 0f)
+            return false;
+
+        var perMole = _atmosphere.GetGas(gasId).PricePerMole;
+        var total = moles * perMole;
+        if (TryComp<MarketModifierComponent>(ent, out var priceMod))
+            total *= priceMod.Mod;
+
+        price = (int) Math.Ceiling(total);
+        return price > 0;
     }
 
     private List<Entity<GasSalePointComponent>> GetNearbySalePoints(EntityUid consoleUid, EntityUid gridUid)
@@ -344,5 +488,75 @@ public sealed class GasDepositSystem : SharedGasDepositSystem
         }
 
         return ret;
+    }
+
+    private List<Entity<GasPurchasePointComponent>> GetNearbyPurchasePoints(EntityUid consoleUid, EntityUid gridUid)
+    {
+        var ret = new List<(Entity<GasPurchasePointComponent> Point, float Distance)>();
+
+        var query = AllEntityQuery<GasPurchasePointComponent, TransformComponent>();
+        var consolePosition = Transform(consoleUid).Coordinates.Position;
+        var maxPurchasePointDistance = DefaultMaxSalePointDistance;
+
+        if (TryComp<GasPurchaseConsoleComponent>(consoleUid, out var purchaseConsole))
+            maxPurchasePointDistance = purchaseConsole.PurchasePointDistance;
+
+        while (query.MoveNext(out var uid, out var comp, out var compXform))
+        {
+            if (compXform.ParentUid != gridUid || !compXform.Anchored)
+                continue;
+
+            var distance = Vector2.Distance(consolePosition, compXform.Coordinates.Position);
+            if (distance > maxPurchasePointDistance)
+                continue;
+
+            ret.Add(((uid, comp), distance));
+        }
+
+        return ret.OrderBy(point => point.Distance).Select(point => point.Point).ToList();
+    }
+
+    private void OnPurchasePointUpdate(Entity<GasPurchasePointComponent> ent, ref AtmosDeviceUpdateEvent args)
+    {
+        if (ent.Comp.GasStorage.TotalMoles <= 0f
+            || TryComp<ApcPowerReceiverComponent>(ent, out var power) && !power.Powered
+            || !_nodeContainer.TryGetNode(ent.Owner, ent.Comp.OutletPipePortName, out PipeNode? port)
+            || port.NodeGroup is not PipeNet { NodeCount: > 1 } net)
+        {
+            return;
+        }
+
+        _atmosphere.Merge(net.Air, ent.Comp.GasStorage);
+        ent.Comp.GasStorage.Clear();
+    }
+
+    private void OnPurchasePointExamined(Entity<GasPurchasePointComponent> ent, ref ExaminedEvent args)
+    {
+        if (!args.IsInDetailsRange)
+            return;
+
+        var storedMoles = ent.Comp.GasStorage.TotalMoles;
+        args.PushMarkup(Loc.GetString("gas-purchase-point-examine-stored",
+            ("value", storedMoles)));
+
+        var status = GetPurchasePointStatus(ent);
+        args.PushMarkup(Loc.GetString(status));
+    }
+
+    private string GetPurchasePointStatus(Entity<GasPurchasePointComponent> ent)
+    {
+        if (TryComp<ApcPowerReceiverComponent>(ent, out var power) && !power.Powered)
+            return "gas-purchase-point-examine-unpowered";
+
+        if (!_nodeContainer.TryGetNode(ent.Owner, ent.Comp.OutletPipePortName, out PipeNode? port))
+            return "gas-purchase-point-examine-no-node";
+
+        if (port.NodeGroup is not PipeNet { NodeCount: > 1 })
+            return "gas-purchase-point-examine-no-pipe-net";
+
+        if (ent.Comp.GasStorage.TotalMoles <= 0f)
+            return "gas-purchase-point-examine-empty";
+
+        return "gas-purchase-point-examine-ready";
     }
 }
