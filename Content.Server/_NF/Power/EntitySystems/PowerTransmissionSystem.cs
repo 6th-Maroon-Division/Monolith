@@ -133,7 +133,8 @@ public sealed partial class PowerTransmissionSystem : EntitySystem
         else
             depositValue = ent.Comp.LogarithmCoefficient * MathF.Pow(ent.Comp.LogarithmRateBase, MathF.Log10(power) - ent.Comp.LogarithmSubtrahend);
 
-        return MathF.Min(depositValue, ent.Comp.MaxValuePerSecond);
+        //return MathF.Min(depositValue, ent.Comp.MaxValuePerSecond);
+        return depositValue;
     }
 
     private void OnUIOpen(Entity<PowerTransmissionComponent> ent, ref AfterActivatableUIOpenEvent args)
