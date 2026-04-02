@@ -28,27 +28,37 @@ public sealed class ProgrammableComputerPowerActionMessage : BoundUserInterfaceM
     }
 }
 
+/// <summary>
+/// Packed key event. Bit layout:
+///   bits  0-6  : Keyboard.Key enum value (0-120)
+///   bit   7    : Pressed (1=down, 0=up)
+///   bit   8    : IsRepeat
+///   bit   9    : Ctrl
+///   bit   10   : Alt
+///   bit   11   : Shift
+///   bit   12   : Meta/System
+///   bits 13-14 : Layout (0=us, 1=qwertz, 2=azerty)
+///   bits 15-31 : reserved/zero
+/// </summary>
 [Serializable, NetSerializable]
 public sealed class ProgrammableComputerKeyMessage : BoundUserInterfaceMessage
 {
-    public readonly int KeyCode;
-    public readonly bool Pressed;
-    public readonly bool IsRepeat;
-    public readonly bool Ctrl;
-    public readonly bool Alt;
-    public readonly bool Shift;
-    public readonly bool Meta;
+    public readonly int Packed;
 
-    public ProgrammableComputerKeyMessage(int keyCode, bool pressed, bool isRepeat, bool ctrl, bool alt, bool shift, bool meta)
+    public ProgrammableComputerKeyMessage(int packed)
     {
-        KeyCode = keyCode;
-        Pressed = pressed;
-        IsRepeat = isRepeat;
-        Ctrl = ctrl;
-        Alt = alt;
-        Shift = shift;
-        Meta = meta;
+        Packed = packed;
     }
+
+    // Unpack helpers
+    public int KeyCode   => Packed & 0x7F;
+    public bool Pressed  => (Packed & (1 << 7))  != 0;
+    public bool IsRepeat => (Packed & (1 << 8))  != 0;
+    public bool Ctrl     => (Packed & (1 << 9))  != 0;
+    public bool Alt      => (Packed & (1 << 10)) != 0;
+    public bool Shift    => (Packed & (1 << 11)) != 0;
+    public bool Meta     => (Packed & (1 << 12)) != 0;
+    public int  Layout   => (Packed >> 13) & 0x3;
 }
 
 [Serializable, NetSerializable]

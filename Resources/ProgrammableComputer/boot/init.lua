@@ -14,38 +14,109 @@ local K = {
   F10=103,F11=104,F12=105,
 }
 
-local lower = {
-  [K.A]='a',[K.B]='b',[K.C]='c',[K.D]='d',[K.E]='e',
-  [K.F]='f',[K.G]='g',[K.H]='h',[K.I]='i',[K.J]='j',
-  [K.K]='k',[K.L]='l',[K.M]='m',[K.N]='n',[K.O]='o',
-  [K.P]='p',[K.Q]='q',[K.R]='r',[K.S]='s',[K.T]='t',
-  [K.U]='u',[K.V]='v',[K.W]='w',[K.X]='x',[K.Y]='y',[K.Z]='z',
-  [K.D0]='0',[K.D1]='1',[K.D2]='2',[K.D3]='3',[K.D4]='4',
-  [K.D5]='5',[K.D6]='6',[K.D7]='7',[K.D8]='8',[K.D9]='9',
-  [K.SPACE]=' ',[K.PERIOD]='.',[K.COMMA]=',',[K.SEMICOLON]=';',
-  [K.SLASH]='/',[K.BACKSLASH]='\\',[K.APOSTROPHE]="'",
-  [K.EQUAL]='=',[K.MINUS]='-',[K.TILDE]='`',
-  [K.LBRACKET]='[',[K.RBRACKET]=']',
-}
-local upper = {
-  [K.A]='A',[K.B]='B',[K.C]='C',[K.D]='D',[K.E]='E',
-  [K.F]='F',[K.G]='G',[K.H]='H',[K.I]='I',[K.J]='J',
-  [K.K]='K',[K.L]='L',[K.M]='M',[K.N]='N',[K.O]='O',
-  [K.P]='P',[K.Q]='Q',[K.R]='R',[K.S]='S',[K.T]='T',
-  [K.U]='U',[K.V]='V',[K.W]='W',[K.X]='X',[K.Y]='Y',[K.Z]='Z',
-  [K.D0]=')',[K.D1]='!',[K.D2]='@',[K.D3]='#',[K.D4]='$',
-  [K.D5]='%',[K.D6]='^',[K.D7]='&',[K.D8]='*',[K.D9]='(',
-  [K.SPACE]=' ',[K.PERIOD]='>',[K.COMMA]='<',[K.SEMICOLON]=':',
-  [K.SLASH]='?',[K.BACKSLASH]='|',[K.APOSTROPHE]='"',
-  [K.EQUAL]='+',[K.MINUS]='_',[K.TILDE]='~',
-  [K.LBRACKET]='{',[K.RBRACKET]='}',
-}
+-- layout: 0=us, 1=qwertz, 2=azerty  (packed into key event by client)
+local function map_letter(code, shift, layout)
+    local letter = nil
+
+    if layout == 1 then -- qwertz
+        if code == K.Y then
+            letter = 'z'
+        elseif code == K.Z then
+            letter = 'y'
+        end
+    elseif layout == 2 then -- azerty
+        if code == K.Q then
+            letter = 'a'
+        elseif code == K.A then
+            letter = 'q'
+        elseif code == K.W then
+            letter = 'z'
+        elseif code == K.Z then
+            letter = 'w'
+        elseif code == K.SEMICOLON then
+            letter = 'm'
+        end
+    end
+
+    if letter == nil and code >= K.A and code <= K.Z then
+        letter = string.char(string.byte('a') + (code - K.A))
+    end
+
+    if letter == nil then
+        return nil
+    end
+
+    return shift and string.upper(letter) or letter
+end
+
+local function map_symbol(code, shift, layout)
+    if layout == 1 then -- qwertz
+        local normal = {
+            [K.D0] = '0', [K.D1] = '1', [K.D2] = '2', [K.D3] = '3', [K.D4] = '4',
+            [K.D5] = '5', [K.D6] = '6', [K.D7] = '7', [K.D8] = '8', [K.D9] = '9',
+            [K.TILDE] = '^', [K.RBRACKET] = '+', [K.BACKSLASH] = '#',
+            [K.COMMA] = ',', [K.PERIOD] = '.', [K.SLASH] = '-', [K.SPACE] = ' '
+        }
+        local shifted = {
+            [K.D0] = '=', [K.D1] = '!', [K.D2] = '"', [K.D4] = '$', [K.D5] = '%',
+            [K.D6] = '&', [K.D7] = '/', [K.D8] = '(', [K.D9] = ')',
+            [K.MINUS] = '?', [K.EQUAL] = '`', [K.LBRACKET] = '*', [K.RBRACKET] = "'",
+            [K.COMMA] = ';', [K.PERIOD] = ':', [K.SLASH] = '_'
+        }
+        return shift and shifted[code] or normal[code]
+    elseif layout == 2 then -- azerty
+        local normal = {
+            [K.D1] = '&', [K.D3] = '"', [K.D4] = "'", [K.D5] = '(', [K.D6] = '-',
+            [K.D8] = '_', [K.MINUS] = ')', [K.EQUAL] = '=', [K.LBRACKET] = '$',
+            [K.RBRACKET] = '*', [K.COMMA] = ';', [K.PERIOD] = ':', [K.SLASH] = '!',
+            [K.SPACE] = ' '
+        }
+        local shifted = {
+            [K.D0] = '0', [K.D1] = '1', [K.D2] = '2', [K.D3] = '3', [K.D4] = '4',
+            [K.D5] = '5', [K.D6] = '6', [K.D7] = '7', [K.D8] = '8', [K.D9] = '9',
+            [K.EQUAL] = '+', [K.LBRACKET] = '^', [K.APOSTROPHE] = '%',
+            [K.COMMA] = '?', [K.PERIOD] = '.', [K.SLASH] = '/'
+        }
+        return shift and shifted[code] or normal[code]
+    else -- us (layout == 0)
+        local normal = {
+            [K.D0] = '0', [K.D1] = '1', [K.D2] = '2', [K.D3] = '3', [K.D4] = '4',
+            [K.D5] = '5', [K.D6] = '6', [K.D7] = '7', [K.D8] = '8', [K.D9] = '9',
+            [K.TILDE] = '`', [K.MINUS] = '-', [K.EQUAL] = '=', [K.LBRACKET] = '[',
+            [K.RBRACKET] = ']', [K.BACKSLASH] = '\\', [K.SEMICOLON] = ';',
+            [K.APOSTROPHE] = "'", [K.COMMA] = ',', [K.PERIOD] = '.', [K.SLASH] = '/',
+            [K.SPACE] = ' '
+        }
+        local shifted = {
+            [K.D0] = ')', [K.D1] = '!', [K.D2] = '@', [K.D3] = '#', [K.D4] = '$',
+            [K.D5] = '%', [K.D6] = '^', [K.D7] = '&', [K.D8] = '*', [K.D9] = '(',
+            [K.TILDE] = '~', [K.MINUS] = '_', [K.EQUAL] = '+', [K.LBRACKET] = '{',
+            [K.RBRACKET] = '}', [K.BACKSLASH] = '|', [K.SEMICOLON] = ':',
+            [K.APOSTROPHE] = '"', [K.COMMA] = '<', [K.PERIOD] = '>', [K.SLASH] = '?'
+        }
+        return shift and shifted[code] or normal[code]
+    end
+end
+
+local function keycode_to_text(code, shift, layout)
+    local letter = map_letter(code, shift, layout)
+    if letter ~= nil then
+        return letter
+    end
+
+    return map_symbol(code, shift, layout)
+end
 
 local W, H = term.getSize()
 local line = ''
-local shifted = false
+local cursor = 1
 local mode = 'shell'
 local cwd = '/'
+local input_row = 1
+local shell_history = {}
+local repl_history = {}
+local history_index = nil
+local history_stash = ''
 
 local function eval_source(source)
     local exec = computer.exec(source, true)
@@ -216,6 +287,8 @@ local function load_compat()
 end
 
 local function write_prompt()
+    local _, y = term.getCursorPos()
+    input_row = y
     if mode == 'repl' then
         term.write('lua> ')
     else
@@ -223,9 +296,81 @@ local function write_prompt()
     end
 end
 
+local function prompt_text()
+    return mode == 'repl' and 'lua> ' or '> '
+end
+
+local function active_history()
+    return mode == 'repl' and repl_history or shell_history
+end
+
+local function reset_history_navigation()
+    history_index = nil
+    history_stash = ''
+end
+
+local function add_history_entry(entry)
+    if entry == nil or entry == '' then
+        return
+    end
+
+    local history = active_history()
+    if history[#history] ~= entry then
+        table.insert(history, entry)
+    end
+
+    if #history > 100 then
+        table.remove(history, 1)
+    end
+end
+
+local function render_input_line()
+    local prompt = prompt_text()
+    term.setCursorPos(1, input_row)
+    term.clearLine()
+    term.write(prompt .. line)
+    term.setCursorPos(#prompt + cursor, input_row)
+end
+
+local function set_line(new_line)
+    line = new_line or ''
+    cursor = #line + 1
+    render_input_line()
+end
+
+local function navigate_history(delta)
+    local history = active_history()
+    if #history == 0 then
+        return
+    end
+
+    if history_index == nil then
+        if delta < 0 then
+            history_stash = line
+            history_index = #history
+        else
+            return
+        end
+    else
+        history_index = history_index + delta
+        if history_index < 1 then
+            history_index = 1
+        elseif history_index > #history then
+            history_index = nil
+            set_line(history_stash)
+            history_stash = ''
+            return
+        end
+    end
+
+    set_line(history[history_index] or '')
+end
+
 local function draw_shell()
     mode = 'shell'
     line = ''
+    cursor = 1
+    reset_history_navigation()
     term.clear()
     term.setCursorPos(1, 1)
     term.write('Lua Computer v1.0  [' .. W .. 'x' .. H .. ']')
@@ -238,6 +383,8 @@ end
 local function draw_repl()
     mode = 'repl'
     line = ''
+    cursor = 1
+    reset_history_navigation()
     term.clear()
     term.setCursorPos(1, 1)
     term.write('Lua REPL')
@@ -251,30 +398,32 @@ load_compat()
 draw_shell()
 
 while true do
-    local ev, code, held, ctrl, alt, shift, meta = event.pull()
+    local ev, code, held, ctrl, alt, shift, meta, layout = event.pull()
     if ev == 'key' then
-        if code == K.SHIFT then
-            shifted = true
-        elseif not held then
-            if code == K.RETURN or code == K.NUMPADENTER then
+            layout = layout or 0
+
+            if (code == K.RETURN or code == K.NUMPADENTER) and not held then
                 local suppress_prompt = false
+                local input = line
                 local x, y = term.getCursorPos()
                 term.setCursorPos(1, y + 1)
 
                 if mode == 'repl' then
-                    if line == 'exit' then
+                    if input == 'exit' then
+                        add_history_entry(input)
                         draw_shell()
                         suppress_prompt = true
-                    elseif line ~= '' then
-                        eval_source(line)
+                    elseif input ~= '' then
+                        add_history_entry(input)
+                        eval_source(input)
                         local x2, y2 = term.getCursorPos()
                         if x2 ~= 1 then
                             term.setCursorPos(1, y2 + 1)
                         end
                     end
                 else
-                    if line ~= '' then
-                        local input = line
+                    if input ~= '' then
+                        add_history_entry(input)
                         if input == 'help' then
                             term.writeLine('help          - show this help')
                             term.writeLine('cls           - clear the screen')
@@ -288,6 +437,8 @@ while true do
                             term.writeLine('lua <expr>    - evaluate Lua expression')
                         elseif input == 'cls' or input == 'clear' then
                             line = ''
+                            cursor = 1
+                            reset_history_navigation()
                             term.clear()
                             term.setCursorPos(1, 1)
                             write_prompt()
@@ -356,34 +507,51 @@ while true do
 
                 if not suppress_prompt then
                     line = ''
+                    cursor = 1
+                    reset_history_navigation()
                     write_prompt()
                 end
             elseif code == K.BACKSPACE then
-                if #line > 0 then
-                    line = line:sub(1, -2)
-                    local x, y = term.getCursorPos()
-                    local prompt_len = mode == 'repl' and 5 or 2
-                    if x > prompt_len + 1 then
-                        term.setCursorPos(x - 1, y)
-                        term.write(' ')
-                        term.setCursorPos(x - 1, y)
-                    end
+                if cursor > 1 and #line > 0 then
+                    line = line:sub(1, cursor - 2) .. line:sub(cursor)
+                    cursor = cursor - 1
+                    reset_history_navigation()
+                    render_input_line()
                 end
+            elseif code == K.LEFT then
+                if cursor > 1 then
+                    cursor = cursor - 1
+                    render_input_line()
+                end
+            elseif code == K.RIGHT then
+                if cursor <= #line then
+                    cursor = cursor + 1
+                    render_input_line()
+                end
+            elseif code == K.HOME then
+                cursor = 1
+                render_input_line()
+            elseif code == K.END then
+                cursor = #line + 1
+                render_input_line()
+            elseif code == K.DELETE then
+                if cursor <= #line then
+                    line = line:sub(1, cursor - 1) .. line:sub(cursor + 1)
+                    reset_history_navigation()
+                    render_input_line()
+                end
+            elseif code == K.UP then
+                navigate_history(-1)
+            elseif code == K.DOWN then
+                navigate_history(1)
             elseif not ctrl and not alt and not meta then
-                local map = shifted and upper or lower
-                local ch = map[code]
-                if ch then
-                    line = line .. ch
-                    term.write(ch)
+                local typed = keycode_to_text(code, shift, layout)
+                if typed ~= nil and typed ~= '' then
+                    line = line:sub(1, cursor - 1) .. typed .. line:sub(cursor)
+                    cursor = cursor + #typed
+                    reset_history_navigation()
+                    render_input_line()
                 end
             end
         end
-    elseif ev == 'text' then
-        if type(code) == 'string' and code ~= '' then
-            line = line .. code
-            term.write(code)
-        end
-    elseif ev == 'key_up' then
-        if code == K.SHIFT then shifted = false end
-    end
 end

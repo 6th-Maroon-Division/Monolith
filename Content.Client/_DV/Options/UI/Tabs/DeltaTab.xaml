@@ -12,6 +12,10 @@
                    FontColorOverride="{xNamespace:Static s:StyleNano.NanoGold}"
                    StyleClasses="LabelKeyText"/>
             <CheckBox Name="DisableFiltersCheckBox" Text="{Loc 'ui-options-no-filters'}" />
+             <Label Text="{Loc 'ui-options-general-programmable-computer'}"
+                 FontColorOverride="{xNamespace:Static s:StyleNano.NanoGold}"
+                 StyleClasses="LabelKeyText"/>
+             <OptionButton Name="KeyboardLayoutOption" HorizontalExpand="True" />
         </BoxContainer>
         <controls:StripeBack HasBottomEdge="False" HasMargins="False">
             <Button Name="ApplyButton"

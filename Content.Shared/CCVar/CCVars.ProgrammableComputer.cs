@@ -6,6 +6,13 @@ namespace Content.Shared.CCVar;
 
 public sealed partial class CCVars
 {
+    /// <summary>
+    /// Keyboard layout sent with every key event to the programmable computer.
+    /// Values: "us" (default), "qwertz", "azerty".
+    /// </summary>
+    public static readonly CVarDef<string> ProgrammableComputerKeyboardLayout =
+        CVarDef.Create("programmable_computer.keyboard_layout", "us", CVar.CLIENTONLY | CVar.ARCHIVE);
+
     [CVarControl(AdminFlags.Server)]
     public static readonly CVarDef<bool> ProgrammableComputerNetworkEnabled =
         CVarDef.Create("programmable_computer.network.enabled", false, CVar.SERVERONLY);

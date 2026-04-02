@@ -65,7 +65,6 @@ public sealed class ProgrammableComputerSystem : EntitySystem
         SubscribeLocalEvent<ProgrammableComputerComponent, ComponentShutdown>(OnComponentShutdown);
         SubscribeLocalEvent<ProgrammableComputerComponent, BeforeActivatableUIOpenEvent>(OnBeforeUiOpen);
         SubscribeLocalEvent<ProgrammableComputerComponent, ProgrammableComputerKeyMessage>(OnKeyInput);
-        SubscribeLocalEvent<ProgrammableComputerComponent, ProgrammableComputerTextInputMessage>(OnTextInput);
         SubscribeLocalEvent<ProgrammableComputerComponent, ProgrammableComputerPowerActionMessage>(OnPowerAction);
     }
 
@@ -119,21 +118,8 @@ public sealed class ProgrammableComputerSystem : EntitySystem
             LuaEventArg.FromBoolean(args.Ctrl),
             LuaEventArg.FromBoolean(args.Alt),
             LuaEventArg.FromBoolean(args.Shift),
-            LuaEventArg.FromBoolean(args.Meta));
-    }
-
-    private void OnTextInput(EntityUid uid, ProgrammableComputerComponent component, ProgrammableComputerTextInputMessage args)
-    {
-        var runtime = EnsureRuntime(uid);
-        if (!runtime.IsRunning || string.IsNullOrEmpty(args.Text))
-            return;
-
-        foreach (var rune in args.Text.EnumerateRunes())
-        {
-            PumpCoroutine(uid, component, runtime,
-                LuaEventArg.FromString("text"),
-                LuaEventArg.FromString(rune.ToString()));
-        }
+            LuaEventArg.FromBoolean(args.Meta),
+            LuaEventArg.FromNumber(args.Layout));
     }
 
     private void OnPowerAction(EntityUid uid, ProgrammableComputerComponent component, ProgrammableComputerPowerActionMessage args)
