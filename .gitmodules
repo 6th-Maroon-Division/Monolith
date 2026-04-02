@@ -2,3 +2,7 @@
 	path = RobustToolbox
 	url = https://github.com/space-wizards/RobustToolbox.git
 	branch = master
+[submodule "MoonSharp"]
+	path = MoonSharp
+	url = https://github.com/6th-Maroon-Division/moonsharp.git
+	branch = master

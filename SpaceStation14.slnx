@@ -169,4 +169,33 @@
     </Project>
     <File Path="RobustToolbox/RobustToolbox.slnx" />
   </Folder>
+  <Folder Name="/MoonSharp/DevTools/">
+    <Project Path="MoonSharp/src/DevTools/Playground/Playground.csproj" />
+    <Project Path="MoonSharp/src/DevTools/PerformanceComparison/PerformanceComparison.csproj" />
+    <Project Path="MoonSharp/src/DevTools/VsCodeDebugger_Testbed/VsCodeDebugger_Testbed.csproj" />
+  </Folder>
+  <Folder Name="/MoonSharp/TestRunners/">
+    <Project Path="MoonSharp/src/TestRunners/ConsoleTestRunner/ConsoleTestRunner.csproj" />
+    <Project Path="MoonSharp/src/TestRunners/DotNetCoreTestRunner/DotNetCoreTestRunner.csproj" />
+  </Folder>
+  <Folder Name="/MoonSharp/Tutorial/">
+    <Project Path="MoonSharp/src/Tutorial/Tutorials/Tutorials.csproj" />
+  </Folder>
+  <Folder Name="/MoonSharp/Xamarin/">
+    <Project Path="MoonSharp/src/Xamarin/XamarinTestBed_Android/XamarinTestBed_Android/XamarinTestBed_Android.csproj">
+      <Build Solution="Debug|*" Project="false" />
+      <Build Solution="DebugOpt|*" Project="false" />
+      <Build Solution="Release|*" Project="false" />
+      <Build Solution="Tools|*" Project="false" />
+    </Project>
+  </Folder>
+  <Folder Name="/MoonSharp/">
+    <Project Path="MoonSharp/src/MoonSharp.Interpreter/MoonSharp.Interpreter.csproj" />
+    <Project Path="MoonSharp/src/MoonSharp.Interpreter.Tests/MoonSharp.Interpreter.Tests.csproj" />
+    <Project Path="MoonSharp/src/MoonSharp.Hardwire/MoonSharp.Hardwire.csproj" />
+    <Project Path="MoonSharp/src/MoonSharp.RemoteDebugger/MoonSharp.RemoteDebugger.csproj" />
+    <Project Path="MoonSharp/src/MoonSharp.VsCodeDebugger/MoonSharp.VsCodeDebugger.csproj" />
+    <Project Path="MoonSharp/src/MoonSharp/MoonSharp.csproj" />
+    <File Path="MoonSharp/README.md" />
+  </Folder>
 </Solution>

@@ -1,0 +1,184 @@
+- type: entity
+  id: BaseProgrammableComputerPart
+  parent: BaseItem
+  abstract: true
+  name: programmable computer part
+  description: A modular hardware component for a programmable computer.
+  components:
+  - type: Sprite
+    sprite: _NF/Objects/Misc/stock_parts.rsi
+  - type: Item
+    size: Tiny
+  - type: StaticPrice
+    price: 50
+
+- type: entity
+  id: ProgrammableComputerCpuTier1
+  parent: BaseProgrammableComputerPart
+  name: programmable CPU T1
+  description: An entry-level programmable computer CPU.
+  components:
+  - type: Sprite
+    state: micro_mani
+  - type: MachinePart
+    part: ProgrammableComputerCpu
+    rating: 1
+  - type: Tag
+    tags:
+    - ProgrammableComputerCpuPart
+
+- type: entity
+  id: ProgrammableComputerCpuTier2
+  parent: ProgrammableComputerCpuTier1
+  name: programmable CPU T2
+  description: A mid-tier programmable computer CPU.
+  components:
+  - type: Sprite
+    state: nano_mani
+  - type: MachinePart
+    part: ProgrammableComputerCpu
+    rating: 2
+
+- type: entity
+  id: ProgrammableComputerCpuTier3
+  parent: ProgrammableComputerCpuTier1
+  name: programmable CPU T3
+  description: A high-end programmable computer CPU.
+  components:
+  - type: Sprite
+    state: pico_mani
+  - type: MachinePart
+    part: ProgrammableComputerCpu
+    rating: 3
+
+- type: entity
+  id: ProgrammableComputerRamTier1
+  parent: BaseProgrammableComputerPart
+  name: programmable RAM T1
+  description: A low-capacity memory module for a programmable computer.
+  components:
+  - type: Sprite
+    state: capacitor
+  - type: MachinePart
+    part: ProgrammableComputerRam
+    rating: 1
+  - type: Tag
+    tags:
+    - ProgrammableComputerRamPart
+
+- type: entity
+  id: ProgrammableComputerRamTier2
+  parent: ProgrammableComputerRamTier1
+  name: programmable RAM T2
+  description: A medium-capacity memory module for a programmable computer.
+  components:
+  - type: Sprite
+    state: adv_capacitor
+  - type: MachinePart
+    part: ProgrammableComputerRam
+    rating: 2
+
+- type: entity
+  id: ProgrammableComputerRamTier3
+  parent: ProgrammableComputerRamTier1
+  name: programmable RAM T3
+  description: A high-capacity memory module for a programmable computer.
+  components:
+  - type: Sprite
+    state: super_capacitor
+  - type: MachinePart
+    part: ProgrammableComputerRam
+    rating: 3
+
+- type: entity
+  id: ProgrammableComputerDiskTier1
+  parent: BaseProgrammableComputerPart
+  name: programmable disk T1
+  description: A small virtual storage module for a programmable computer.
+  components:
+  - type: Sprite
+    state: matter_bin
+  - type: MachinePart
+    part: ProgrammableComputerDisk
+    rating: 1
+  - type: Tag
+    tags:
+    - ProgrammableComputerDiskPart
+
+- type: entity
+  id: ProgrammableComputerDiskTier2
+  parent: ProgrammableComputerDiskTier1
+  name: programmable disk T2
+  description: A medium virtual storage module for a programmable computer.
+  components:
+  - type: Sprite
+    state: advanced_matter_bin
+  - type: MachinePart
+    part: ProgrammableComputerDisk
+    rating: 2
+
+- type: entity
+  id: ProgrammableComputerDiskTier3
+  parent: ProgrammableComputerDiskTier1
+  name: programmable disk T3
+  description: A high-capacity virtual storage module for a programmable computer.
+  components:
+  - type: Sprite
+    state: super_matter_bin
+  - type: MachinePart
+    part: ProgrammableComputerDisk
+    rating: 3
+
+- type: entity
+  id: ProgrammableComputerNetworkTier1
+  parent: BaseProgrammableComputerPart
+  name: network module T1
+  description: A basic network module for outbound HTTP access.
+  components:
+  - type: Sprite
+    state: treatment_disk
+  - type: MachinePart
+    part: ProgrammableComputerNetwork
+    rating: 1
+  - type: Tag
+    tags:
+    - ProgrammableComputerNetworkPart
+
+- type: entity
+  id: ProgrammableComputerNetworkTier2
+  parent: ProgrammableComputerNetworkTier1
+  name: network module T2
+  description: An advanced network module with websocket capability.
+  components:
+  - type: Sprite
+    state: wavelength_analyzer
+  - type: MachinePart
+    part: ProgrammableComputerNetwork
+    rating: 2
+
+- type: entity
+  id: ProgrammableComputerNetworkTier3
+  parent: ProgrammableComputerNetworkTier1
+  name: network module T3
+  description: A high-bandwidth network module for programmable computers.
+  components:
+  - type: Sprite
+    state: subspace_transmitter
+  - type: MachinePart
+    part: ProgrammableComputerNetwork
+    rating: 3
+
+- type: entity
+  id: ProgrammableComputerTimerModule
+  parent: BaseProgrammableComputerPart
+  name: timer expansion module
+  description: An expansion module reserved for timed execution features.
+  components:
+  - type: Sprite
+    state: subspace_ansible
+  - type: MachinePart
+    part: ProgrammableComputerExpansion
+    rating: 1
+  - type: Tag
+    tags:
+    - ProgrammableComputerExpansionPart

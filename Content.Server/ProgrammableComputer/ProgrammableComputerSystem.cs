@@ -1,0 +1,2010 @@
+using System.Diagnostics;
+using System.Globalization;
+using System.IO;
+using System.Net.Http;
+using System.Net.WebSockets;
+using System.Text;
+using System.Threading;
+using System.Linq;
+using Content.Shared.CCVar;
+using Content.Shared.Construction.Components;
+using Content.Shared.Containers.ItemSlots;
+using Content.Shared.ProgrammableComputer;
+using Content.Shared.UserInterface;
+using MoonSharp.Interpreter;
+using MoonSharp.Interpreter.Loaders;
+using Robust.Shared.Configuration;
+using Robust.Shared.ContentPack;
+using Robust.Shared.Maths;
+using Robust.Shared.Network;
+using Robust.Shared.Timing;
+using Robust.Shared.Utility;
+using Robust.Server.GameObjects;
+
+namespace Content.Server.ProgrammableComputer;
+
+public sealed class ProgrammableComputerSystem : EntitySystem
+{
+    private static readonly TimeSpan BootStageDelay = TimeSpan.FromMilliseconds(350);
+    private const int MinRuntimeRamKiB = 64;
+    private static readonly ResPath ProgrammableComputerResourceRoot = new("/ProgrammableComputer/");
+    private static readonly Color DefaultTerminalForeground = Color.FromHex("#9cffad");
+    private static readonly Color DefaultTerminalBackground = Color.FromHex("#070a0c");
+    private static readonly Color[] TerminalPalette =
+    {
+        Color.Black,
+        Color.FromHex("#800000"),
+        Color.FromHex("#008000"),
+        Color.FromHex("#808000"),
+        Color.FromHex("#000080"),
+        Color.FromHex("#800080"),
+        Color.FromHex("#008080"),
+        Color.FromHex("#c0c0c0"),
+        Color.FromHex("#808080"),
+        Color.Red,
+        Color.Lime,
+        Color.Yellow,
+        Color.Blue,
+        Color.Magenta,
+        Color.Cyan,
+        Color.White,
+    };
+
+    [Dependency] private readonly IConfigurationManager _cfg = default!;
+    [Dependency] private readonly IHttpClientHolder _http = default!;
+    [Dependency] private readonly ItemSlotsSystem _itemSlots = default!;
+    [Dependency] private readonly IResourceManager _resMan = default!;
+    [Dependency] private readonly IGameTiming _timing = default!;
+    [Dependency] private readonly UserInterfaceSystem _ui = default!;
+
+    private readonly Dictionary<EntityUid, ComputerRuntime> _runtimes = new();
+
+    public override void Initialize()
+    {
+        SubscribeLocalEvent<ProgrammableComputerComponent, ComponentInit>(OnComponentInit);
+        SubscribeLocalEvent<ProgrammableComputerComponent, ComponentShutdown>(OnComponentShutdown);
+        SubscribeLocalEvent<ProgrammableComputerComponent, BeforeActivatableUIOpenEvent>(OnBeforeUiOpen);
+        SubscribeLocalEvent<ProgrammableComputerComponent, ProgrammableComputerKeyMessage>(OnKeyInput);
+        SubscribeLocalEvent<ProgrammableComputerComponent, ProgrammableComputerTextInputMessage>(OnTextInput);
+        SubscribeLocalEvent<ProgrammableComputerComponent, ProgrammableComputerPowerActionMessage>(OnPowerAction);
+    }
+
+    public override void Update(float frameTime)
+    {
+        var now = _timing.CurTime;
+
+        foreach (var (uid, runtime) in _runtimes)
+        {
+            if (!runtime.IsBooting || now < runtime.BootReadyAt)
+                continue;
+
+            if (!TryComp<ProgrammableComputerComponent>(uid, out var component))
+                continue;
+
+            AdvanceBootSequence(uid, component, runtime, now);
+        }
+    }
+
+    private void OnComponentInit(EntityUid uid, ProgrammableComputerComponent component, ComponentInit args)
+    {
+        var runtime = EnsureRuntime(uid);
+        ShowPoweredOffScreen(runtime);
+        UpdateUi(uid, component);
+    }
+
+    private void OnComponentShutdown(EntityUid uid, ProgrammableComputerComponent component, ComponentShutdown args)
+    {
+        if (!_runtimes.Remove(uid, out var runtime))
+            return;
+
+        runtime.Dispose();
+    }
+
+    private void OnBeforeUiOpen(EntityUid uid, ProgrammableComputerComponent component, BeforeActivatableUIOpenEvent args)
+    {
+        UpdateUi(uid, component);
+    }
+
+    private void OnKeyInput(EntityUid uid, ProgrammableComputerComponent component, ProgrammableComputerKeyMessage args)
+    {
+        var runtime = EnsureRuntime(uid);
+        if (!runtime.IsRunning)
+            return;
+
+        var evName = args.Pressed ? "key" : "key_up";
+        PumpCoroutine(uid, component, runtime,
+            LuaEventArg.FromString(evName),
+            LuaEventArg.FromNumber(args.KeyCode),
+            LuaEventArg.FromBoolean(args.IsRepeat),
+            LuaEventArg.FromBoolean(args.Ctrl),
+            LuaEventArg.FromBoolean(args.Alt),
+            LuaEventArg.FromBoolean(args.Shift),
+            LuaEventArg.FromBoolean(args.Meta));
+    }
+
+    private void OnTextInput(EntityUid uid, ProgrammableComputerComponent component, ProgrammableComputerTextInputMessage args)
+    {
+        var runtime = EnsureRuntime(uid);
+        if (!runtime.IsRunning || string.IsNullOrEmpty(args.Text))
+            return;
+
+        foreach (var rune in args.Text.EnumerateRunes())
+        {
+            PumpCoroutine(uid, component, runtime,
+                LuaEventArg.FromString("text"),
+                LuaEventArg.FromString(rune.ToString()));
+        }
+    }
+
+    private void OnPowerAction(EntityUid uid, ProgrammableComputerComponent component, ProgrammableComputerPowerActionMessage args)
+    {
+        var runtime = EnsureRuntime(uid);
+
+        switch (args.Action)
+        {
+            case ProgrammableComputerPowerAction.Start:
+                if (!runtime.IsPoweredOn && !runtime.IsBooting)
+                    StartBootSequence(uid, component, runtime);
+                break;
+            case ProgrammableComputerPowerAction.Shutdown:
+                ShutdownRuntime(uid, component, runtime, "System halted.");
+                break;
+            case ProgrammableComputerPowerAction.Reboot:
+                if (runtime.IsPoweredOn || runtime.IsBooting)
+                    StartBootSequence(uid, component, runtime);
+                break;
+        }
+    }
+
+    private void StartBootSequence(EntityUid uid, ProgrammableComputerComponent component, ComputerRuntime runtime)
+    {
+        var capabilities = GetCapabilities(uid);
+        runtime.IsPoweredOn = true;
+        runtime.IsBooting = true;
+        runtime.IsRunning = false;
+        runtime.StartedAt = DateTimeOffset.UtcNow;
+        runtime.RamLimitBytes = Math.Max(MinRuntimeRamKiB, capabilities.TotalRamKiB) * 1024;
+        runtime.RamUsedBytes = 0;
+        runtime.MainThread = null;
+        runtime.BootCapabilities = capabilities;
+        runtime.BootStage = 0;
+        runtime.BootReadyAt = _timing.CurTime + BootStageDelay;
+        runtime.Terminal.Clear();
+        runtime.Terminal.Write("6MD Modular Bios v6.7FU");
+        runtime.Terminal.NewLine();
+        runtime.Terminal.Write("Copyright (C) 1996-2026, 6MD Software, Inc.");
+        runtime.Terminal.NewLine();
+        runtime.Terminal.NewLine();
+        runtime.Terminal.Write("CPU Module   : Detecting...");
+        runtime.Terminal.NewLine();
+        runtime.Terminal.Write("RAM Module   : Detecting...");
+        runtime.Terminal.NewLine();
+        runtime.Terminal.Write("Disk Module  : Detecting...");
+        runtime.Terminal.NewLine();
+        runtime.Terminal.Write("Net Module   : Detecting...");
+        runtime.Terminal.NewLine();
+        runtime.Terminal.Write("Expansion    : Detecting...");
+
+        UpdateUi(uid, component);
+    }
+
+    private void AdvanceBootSequence(EntityUid uid, ProgrammableComputerComponent component, ComputerRuntime runtime, TimeSpan now)
+    {
+        switch (runtime.BootStage)
+        {
+            case 0:
+                runtime.Terminal.SetCursorPos(1, 4);
+                runtime.Terminal.ClearLine(4);
+                runtime.Terminal.Write($"CPU Module   : {(runtime.BootCapabilities.CpuTier > 0 ? $"Tier {runtime.BootCapabilities.CpuTier} [OK]" : "EMPTY [FAIL]")}");
+                runtime.BootStage = 1;
+                runtime.BootReadyAt = now + BootStageDelay;
+                UpdateUi(uid, component);
+                return;
+
+            case 1:
+                runtime.Terminal.SetCursorPos(1, 5);
+                runtime.Terminal.ClearLine(5);
+                runtime.Terminal.Write($"RAM Module   : {(runtime.BootCapabilities.TotalRamKiB > 0 ? $"{runtime.BootCapabilities.RamSlotsInstalled} slot(s), {runtime.BootCapabilities.TotalRamKiB} KB [OK]" : "EMPTY [FAIL]")}");
+                runtime.BootStage = 2;
+                runtime.BootReadyAt = now + BootStageDelay;
+                UpdateUi(uid, component);
+                return;
+
+            case 2:
+                runtime.Terminal.SetCursorPos(1, 6);
+                runtime.Terminal.ClearLine(6);
+                runtime.Terminal.Write($"Disk Module  : {(runtime.BootCapabilities.TotalDiskKiB > 0 ? $"{runtime.BootCapabilities.DiskSlotsInstalled} slot(s), {runtime.BootCapabilities.TotalDiskKiB} KB [OK]" : "EMPTY [OPTIONAL]")}");
+                runtime.BootStage = 3;
+                runtime.BootReadyAt = now + BootStageDelay;
+                UpdateUi(uid, component);
+                return;
+
+            case 3:
+                runtime.Terminal.SetCursorPos(1, 7);
+                runtime.Terminal.ClearLine(7);
+                runtime.Terminal.Write($"Net Module   : {(runtime.BootCapabilities.NetworkTier > 0 ? $"Tier {runtime.BootCapabilities.NetworkTier} [OK]" : "EMPTY")}");
+                runtime.BootStage = 4;
+                runtime.BootReadyAt = now + BootStageDelay;
+                UpdateUi(uid, component);
+                return;
+
+            case 4:
+                runtime.Terminal.SetCursorPos(1, 8);
+                runtime.Terminal.ClearLine(8);
+                runtime.Terminal.Write($"Expansion    : {(runtime.BootCapabilities.ExpansionModules > 0 ? $"{runtime.BootCapabilities.ExpansionModules} module(s) [OK]" : "EMPTY")}");
+                runtime.Terminal.SetCursorPos(1, 10);
+                runtime.Terminal.ClearLine(10);
+                if (HasRequiredHardware(runtime.BootCapabilities))
+                    runtime.Terminal.Write("POST complete. Initializing Lua VM...");
+                else
+                    runtime.Terminal.Write($"POST failed. Missing required {GetMissingRequiredHardware(runtime.BootCapabilities)}.");
+
+                runtime.BootStage = 5;
+                runtime.BootReadyAt = now + BootStageDelay;
+                UpdateUi(uid, component);
+                return;
+
+            default:
+                if (HasRequiredHardware(runtime.BootCapabilities))
+                {
+                    BootRuntime(uid, component, runtime);
+                }
+                else
+                {
+                    FailBootSequence(uid, component, runtime, $"POST failed. Missing required {GetMissingRequiredHardware(runtime.BootCapabilities)}.");
+                }
+                return;
+        }
+    }
+
+    private void BootRuntime(EntityUid uid, ProgrammableComputerComponent component, ComputerRuntime runtime)
+    {
+        if (!runtime.IsPoweredOn)
+            return;
+
+        InitializeMoonSharpScript(uid, runtime);
+
+        runtime.IsBooting = false;
+
+        var defaultStorageCaps = new ComputerCapabilities { MaxFiles = 32, MaxFileSizeKiB = 64, TotalDiskKiB = 256 };
+        MountBundledPrograms(runtime, defaultStorageCaps);
+
+        if (!runtime.FileSystem.TryRead("/boot/init.lua", out var source))
+        {
+            runtime.Terminal.Write("No /boot/init.lua found.");
+            UpdateUi(uid, component);
+            return;
+        }
+
+        if (!TryLoadMoonSharpMainChunk(runtime, source, out var syntaxError))
+        {
+            runtime.Terminal.Write("Syntax error in /boot/init.lua:");
+            runtime.Terminal.NewLine();
+            runtime.Terminal.Write(syntaxError);
+            UpdateUi(uid, component);
+            return;
+        }
+
+        runtime.IsRunning = true;
+        runtime.Terminal.Clear();
+
+        // First resume: starts execution until the first event.pull() yield.
+        PumpCoroutine(uid, component, runtime);
+    }
+
+    private void MountBundledPrograms(ComputerRuntime runtime, ComputerCapabilities capabilities)
+    {
+        foreach (var resourcePath in _resMan.ContentFindFiles(ProgrammableComputerResourceRoot))
+        {
+            if (!TryGetVfsPathFromResource(resourcePath, out var vfsPath))
+                continue;
+
+            if (runtime.FileSystem.Exists(vfsPath))
+                continue;
+
+            EnsureVfsDirectory(runtime.FileSystem, GetVfsParentDirectory(vfsPath));
+
+            if (!TryLoadBundledProgram(resourcePath, out var source))
+                continue;
+
+            runtime.FileSystem.TryWrite(vfsPath, source, capabilities, out _);
+        }
+    }
+
+    private static bool TryGetVfsPathFromResource(ResPath resourcePath, out string vfsPath)
+    {
+        var root = ProgrammableComputerResourceRoot.ToString();
+        var full = resourcePath.ToString();
+        if (!full.StartsWith(root, StringComparison.Ordinal))
+        {
+            vfsPath = string.Empty;
+            return false;
+        }
+
+        var relative = full[root.Length..].TrimStart('/');
+        if (relative.Length == 0)
+        {
+            vfsPath = string.Empty;
+            return false;
+        }
+
+        vfsPath = "/" + relative;
+        return true;
+    }
+
+    private bool TryLoadBundledProgram(ResPath resourcePath, out string source)
+    {
+        source = string.Empty;
+
+        if (!_resMan.TryContentFileRead(resourcePath, out var stream))
+            return false;
+
+        using var reader = new StreamReader(stream, Encoding.UTF8, leaveOpen: false);
+        source = reader.ReadToEnd();
+        return true;
+    }
+
+    private static void EnsureVfsDirectory(VirtualFileSystem fs, string path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || path == "/")
+            return;
+
+        var parts = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        var current = string.Empty;
+        foreach (var part in parts)
+        {
+            current += "/" + part;
+            fs.TryCreateDirectory(current);
+        }
+    }
+
+    private static string GetVfsParentDirectory(string path)
+    {
+        var idx = path.LastIndexOf('/');
+        return idx <= 0 ? "/" : path[..idx];
+    }
+
+    private static bool HasRequiredHardware(ComputerCapabilities capabilities)
+    {
+        return capabilities.CpuTier > 0
+               && capabilities.TotalRamKiB > 0;
+    }
+
+    private static string GetMissingRequiredHardware(ComputerCapabilities capabilities)
+    {
+        var missingCpu = capabilities.CpuTier <= 0;
+        var missingRam = capabilities.TotalRamKiB <= 0;
+
+        if (missingCpu && missingRam)
+            return "CPU and RAM";
+
+        if (missingCpu)
+            return "CPU";
+
+        if (missingRam)
+            return "RAM";
+
+        return "hardware";
+    }
+
+    private void PumpCoroutine(EntityUid uid, ProgrammableComputerComponent component, ComputerRuntime runtime, params LuaEventArg[] args)
+    {
+        if (runtime.MainThread == null)
+            return;
+
+        if (TryResumeMoonSharp(runtime, args, out var isDead, out var error))
+        {
+            if (isDead)
+            {
+                ShutdownRuntime(uid, component, runtime, "[Program ended]");
+                return;
+            }
+        }
+        else
+        {
+            runtime.IsRunning = false;
+            var x = runtime.Terminal.CursorX;
+            if (x > 1)
+                runtime.Terminal.NewLine();
+            runtime.Terminal.Write(error);
+        }
+
+        UpdateUi(uid, component);
+    }
+
+    private void ShutdownRuntime(EntityUid uid, ProgrammableComputerComponent component, ComputerRuntime runtime, string message)
+    {
+        runtime.IsRunning = false;
+        runtime.IsBooting = false;
+        runtime.IsPoweredOn = false;
+        runtime.MainThread = null;
+        runtime.Terminal.Clear();
+        runtime.Terminal.Write(message);
+        runtime.Terminal.NewLine();
+        runtime.Terminal.Write("Press Start to power on.");
+        UpdateUi(uid, component);
+    }
+
+    private void FailBootSequence(EntityUid uid, ProgrammableComputerComponent component, ComputerRuntime runtime, string message)
+    {
+        runtime.IsRunning = false;
+        runtime.IsBooting = false;
+        runtime.IsPoweredOn = false;
+        runtime.MainThread = null;
+
+        runtime.Terminal.SetCursorPos(1, 12);
+        runtime.Terminal.ClearLine(12);
+        runtime.Terminal.Write("Press Start to power on.");
+
+        UpdateUi(uid, component);
+    }
+
+    private static void ShowPoweredOffScreen(ComputerRuntime runtime)
+    {
+        runtime.IsRunning = false;
+        runtime.IsBooting = false;
+        runtime.IsPoweredOn = false;
+        runtime.MainThread = null;
+        runtime.Terminal.Clear();
+        runtime.Terminal.Write("Programmable computer is powered off.");
+        runtime.Terminal.NewLine();
+        runtime.Terminal.Write("Press Start to power on.");
+    }
+
+    private void UpdateUi(EntityUid uid, ProgrammableComputerComponent component)
+    {
+        if (!_runtimes.TryGetValue(uid, out var runtime))
+            return;
+
+        var cells = runtime.Terminal.GetCells();
+        var state = new ProgrammableComputerBoundUserInterfaceState(
+            cells,
+            string.Empty,
+            string.Empty,
+            string.Empty,
+            ProgrammableComputerComponent.TerminalWidth,
+            ProgrammableComputerComponent.TerminalHeight,
+            runtime.Terminal.CursorX,
+            runtime.Terminal.CursorY,
+            runtime.Terminal.CursorBlink && runtime.IsPoweredOn,
+            runtime.IsPoweredOn,
+            runtime.IsBooting);
+
+        _ui.SetUiState(uid, ProgrammableComputerUiKey.Key, state);
+    }
+
+    private ComputerRuntime EnsureRuntime(EntityUid uid)
+    {
+        if (_runtimes.TryGetValue(uid, out var existing))
+            return existing;
+
+        var runtime = CreateRuntime(uid);
+        _runtimes[uid] = runtime;
+        return runtime;
+    }
+
+    private ComputerRuntime CreateRuntime(EntityUid uid)
+    {
+        return new ComputerRuntime();
+    }
+
+    // ─── MoonSharp initialization and API registration ──────────────────────
+
+    private void InitializeMoonSharpScript(EntityUid uid, ComputerRuntime runtime)
+    {
+        var script = new Script(CoreModules.Preset_HardSandbox | CoreModules.Coroutine);
+        script.Options.CheckThreadAccess = false;
+        script.Options.ScriptLoader = new DenyAllScriptLoader();
+        
+        runtime.Script = script;
+        RegisterMoonSharpApi(uid, runtime, script);
+    }
+
+    private void RegisterMoonSharpApi(EntityUid uid, ComputerRuntime runtime, Script script)
+    {
+        var hostTable = new Table(script);
+
+        // Terminal API
+        hostTable.Set("term_write", DynValue.NewCallback((ctx, args) =>
+        {
+            var text = args.Count > 0 ? ToDynString(args[0]) : string.Empty;
+            runtime.Terminal.Write(text);
+            return DynValue.Void;
+        }, "term_write"));
+
+        hostTable.Set("term_write_line", DynValue.NewCallback((ctx, args) =>
+        {
+            var text = args.Count > 0 ? ToDynString(args[0]) : string.Empty;
+            runtime.Terminal.Write(text);
+            runtime.Terminal.NewLine();
+            return DynValue.Void;
+        }, "term_write_line"));
+
+        hostTable.Set("term_new_line", DynValue.NewCallback((ctx, args) =>
+        {
+            runtime.Terminal.NewLine();
+            return DynValue.Void;
+        }, "term_new_line"));
+
+        hostTable.Set("term_clear", DynValue.NewCallback((ctx, args) =>
+        {
+            runtime.Terminal.Clear();
+            return DynValue.Void;
+        }, "term_clear"));
+
+        hostTable.Set("term_clear_line", DynValue.NewCallback((ctx, args) =>
+        {
+            runtime.Terminal.ClearLine(runtime.Terminal.CursorY);
+            return DynValue.Void;
+        }, "term_clear_line"));
+
+        hostTable.Set("term_set_cursor_pos", DynValue.NewCallback((ctx, args) =>
+        {
+            var x = args.Count > 0 ? (int)args[0].Number : 1;
+            var y = args.Count > 1 ? (int)args[1].Number : 1;
+            runtime.Terminal.SetCursorPos(x, y);
+            return DynValue.Void;
+        }, "term_set_cursor_pos"));
+
+        hostTable.Set("term_get_cursor_pos", DynValue.NewCallback((ctx, args) =>
+        {
+            return DynValue.NewTuple(DynValue.NewNumber(runtime.Terminal.CursorX), DynValue.NewNumber(runtime.Terminal.CursorY));
+        }, "term_get_cursor_pos"));
+
+        hostTable.Set("term_get_size", DynValue.NewCallback((ctx, args) =>
+        {
+            return DynValue.NewTuple(DynValue.NewNumber(ProgrammableComputerComponent.TerminalWidth), DynValue.NewNumber(ProgrammableComputerComponent.TerminalHeight));
+        }, "term_get_size"));
+
+        hostTable.Set("term_set_cursor_blink", DynValue.NewCallback((ctx, args) =>
+        {
+            runtime.Terminal.CursorBlink = args.Count > 0 && IsTruthy(args[0]);
+            return DynValue.Void;
+        }, "term_set_cursor_blink"));
+
+        hostTable.Set("term_set_text_color", DynValue.NewCallback((ctx, args) =>
+        {
+            if (args.Count == 0 || !TryResolveTerminalColor(args[0], out var color))
+                throw new ScriptRuntimeException("term.setTextColor(color) requires a palette index or #RRGGBB value");
+
+            runtime.Terminal.SetTextColor(color);
+            return DynValue.Void;
+        }, "term_set_text_color"));
+
+        hostTable.Set("term_set_background_color", DynValue.NewCallback((ctx, args) =>
+        {
+            if (args.Count == 0 || !TryResolveTerminalColor(args[0], out var color))
+                throw new ScriptRuntimeException("term.setBackgroundColor(color) requires a palette index or #RRGGBB value");
+
+            runtime.Terminal.SetBackgroundColor(color);
+            return DynValue.Void;
+        }, "term_set_background_color"));
+
+        hostTable.Set("term_get_text_color", DynValue.NewCallback((ctx, args) =>
+        {
+            return DynValue.NewString(runtime.Terminal.ForegroundColor.ToHex());
+        }, "term_get_text_color"));
+
+        hostTable.Set("term_get_background_color", DynValue.NewCallback((ctx, args) =>
+        {
+            return DynValue.NewString(runtime.Terminal.BackgroundColor.ToHex());
+        }, "term_get_background_color"));
+
+        hostTable.Set("term_reset_colors", DynValue.NewCallback((ctx, args) =>
+        {
+            runtime.Terminal.ResetColors();
+            return DynValue.Void;
+        }, "term_reset_colors"));
+
+        hostTable.Set("term_scroll", DynValue.NewCallback((ctx, args) =>
+        {
+            var n = args.Count > 0 ? (int)args[0].Number : 1;
+            runtime.Terminal.Scroll(n);
+            return DynValue.Void;
+        }, "term_scroll"));
+
+        // Computer API
+        hostTable.Set("computer_tier", DynValue.NewCallback((ctx, args) =>
+        {
+            var capabilities = GetCapabilities(uid);
+            return DynValue.NewTuple(
+                DynValue.NewNumber(capabilities.CpuTier),
+                DynValue.NewNumber(capabilities.TotalRamKiB),
+                DynValue.NewNumber(capabilities.TotalDiskKiB),
+                DynValue.NewNumber(capabilities.NetworkTier),
+                DynValue.NewNumber(capabilities.ExpansionModules)
+            );
+        }, "computer_tier"));
+
+        hostTable.Set("computer_limits", DynValue.NewCallback((ctx, args) =>
+        {
+            var capabilities = GetCapabilities(uid);
+            return DynValue.NewTuple(
+                DynValue.NewNumber(capabilities.InstructionBudget),
+                DynValue.NewNumber(capabilities.TimeSliceMs),
+                DynValue.NewNumber(capabilities.TotalRamKiB),
+                DynValue.NewNumber(capabilities.TotalDiskKiB),
+                DynValue.NewNumber(capabilities.MaxFiles),
+                DynValue.NewNumber(capabilities.MaxFileSizeKiB)
+            );
+        }, "computer_limits"));
+
+        hostTable.Set("computer_exec", DynValue.NewCallback((ctx, args) =>
+        {
+            var source = args.Count > 0 ? ToDynString(args[0]) : string.Empty;
+            var countAsTransient = args.Count <= 1 || IsTruthy(args[1]);
+            var sourceBytes = Encoding.UTF8.GetByteCount(source);
+
+            if (countAsTransient && !TryReserveRam(runtime, sourceBytes, out var oomError))
+            {
+                CrashRuntimeForOutOfMemory(uid, runtime, oomError);
+                return DynValue.NewTuple(DynValue.NewBoolean(false), DynValue.NewBoolean(false), DynValue.NewString(string.Empty), DynValue.NewString(oomError));
+            }
+
+            try
+            {
+                TryExecuteMoonSharpSnippet(runtime, source, out var hasResult, out var resultText, out var execError);
+                return DynValue.NewTuple(
+                    DynValue.NewBoolean(string.IsNullOrEmpty(execError)),
+                    DynValue.NewBoolean(hasResult),
+                    DynValue.NewString(hasResult ? resultText : string.Empty),
+                    DynValue.NewString(execError)
+                );
+            }
+            finally
+            {
+                if (countAsTransient)
+                    ReleaseRam(runtime, sourceBytes);
+            }
+        }, "computer_exec"));
+
+        hostTable.Set("computer_reboot", DynValue.NewCallback((ctx, args) =>
+        {
+            if (TryComp<ProgrammableComputerComponent>(uid, out var comp))
+                StartBootSequence(uid, comp, runtime);
+            return DynValue.Void;
+        }, "computer_reboot"));
+
+        hostTable.Set("computer_shutdown", DynValue.NewCallback((ctx, args) =>
+        {
+            if (TryComp<ProgrammableComputerComponent>(uid, out var comp))
+                ShutdownRuntime(uid, comp, runtime, "System halted by Lua.");
+            return DynValue.Void;
+        }, "computer_shutdown"));
+
+        // File system API
+        hostTable.Set("fs_list", DynValue.NewCallback((ctx, args) =>
+        {
+            var path = args.Count > 0 ? ToDynString(args[0]) : "/";
+            var entries = runtime.FileSystem.ListDirectory(path);
+            var table = new Table(script);
+            var index = 1;
+            foreach (var entry in entries)
+            {
+                table.Set(DynValue.NewNumber(index++), DynValue.NewString(entry));
+            }
+            return DynValue.NewTable(table);
+        }, "fs_list"));
+
+        hostTable.Set("fs_read", DynValue.NewCallback((ctx, args) =>
+        {
+            if (args.Count == 0)
+                return DynValue.Nil;
+
+            return runtime.FileSystem.TryRead(ToDynString(args[0]), out var text)
+                ? DynValue.NewString(text)
+                : DynValue.Nil;
+        }, "fs_read"));
+
+        hostTable.Set("fs_write", DynValue.NewCallback((ctx, args) =>
+        {
+            if (args.Count < 2)
+                return DynValue.NewBoolean(false);
+
+            var caps = GetCapabilities(uid);
+            var ok = runtime.FileSystem.TryWrite(ToDynString(args[0]), ToDynString(args[1]), caps, out var _);
+            return DynValue.NewBoolean(ok);
+        }, "fs_write"));
+
+        hostTable.Set("fs_mkdir", DynValue.NewCallback((ctx, args) =>
+        {
+            if (args.Count == 0)
+                return DynValue.NewBoolean(false);
+            return DynValue.NewBoolean(runtime.FileSystem.TryCreateDirectory(ToDynString(args[0])));
+        }, "fs_mkdir"));
+
+        hostTable.Set("fs_remove", DynValue.NewCallback((ctx, args) =>
+        {
+            if (args.Count == 0)
+                return DynValue.NewBoolean(false);
+            return DynValue.NewBoolean(runtime.FileSystem.Remove(ToDynString(args[0])));
+        }, "fs_remove"));
+
+        hostTable.Set("fs_exists", DynValue.NewCallback((ctx, args) =>
+        {
+            if (args.Count == 0)
+                return DynValue.NewBoolean(false);
+            return DynValue.NewBoolean(runtime.FileSystem.Exists(ToDynString(args[0])));
+        }, "fs_exists"));
+
+        // OS API
+        hostTable.Set("os_clock", DynValue.NewCallback((ctx, args) =>
+        {
+            return DynValue.NewNumber((DateTimeOffset.UtcNow - runtime.StartedAt).TotalSeconds);
+        }, "os_clock"));
+
+        hostTable.Set("os_time_now", DynValue.NewCallback((ctx, args) =>
+        {
+            return DynValue.NewNumber(DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+        }, "os_time_now"));
+
+        hostTable.Set("os_time_from_table", DynValue.NewCallback((ctx, args) =>
+        {
+            if (args.Count == 0 || args[0].Type != DataType.Table)
+                throw new ScriptRuntimeException("os.time([table]) expects a table");
+
+            var table = args[0].Table;
+            var year = table.Get("year").Number;
+            var month = table.Get("month").Type == DataType.Nil ? 1 : table.Get("month").Number;
+            var day = table.Get("day").Type == DataType.Nil ? 1 : table.Get("day").Number;
+            var hour = table.Get("hour").Type == DataType.Nil ? 12 : table.Get("hour").Number;
+            var min = table.Get("min").Type == DataType.Nil ? 0 : table.Get("min").Number;
+            var sec = table.Get("sec").Type == DataType.Nil ? 0 : table.Get("sec").Number;
+            
+            var value = new DateTimeOffset((int)year, (int)month, (int)day, (int)hour, (int)min, (int)sec, TimeSpan.Zero);
+            return DynValue.NewNumber(value.ToUnixTimeSeconds());
+        }, "os_time_from_table"));
+
+        hostTable.Set("os_difftime", DynValue.NewCallback((ctx, args) =>
+        {
+            var left = args.Count > 0 ? args[0].Number : 0;
+            var right = args.Count > 1 ? args[1].Number : 0;
+            return DynValue.NewNumber(left - right);
+        }, "os_difftime"));
+
+        hostTable.Set("os_date", DynValue.NewCallback((ctx, args) =>
+        {
+            var format = args.Count > 0 ? ToDynString(args[0]) : "%c";
+            var timestamp = args.Count > 1 ? (long)args[1].Number : DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            var date = DateTimeOffset.FromUnixTimeSeconds(timestamp).UtcDateTime;
+
+            if (format == "*t")
+            {
+                var resultTable = new Table(script);
+                resultTable.Set("year", DynValue.NewNumber(date.Year));
+                resultTable.Set("month", DynValue.NewNumber(date.Month));
+                resultTable.Set("day", DynValue.NewNumber(date.Day));
+                resultTable.Set("hour", DynValue.NewNumber(date.Hour));
+                resultTable.Set("min", DynValue.NewNumber(date.Minute));
+                resultTable.Set("sec", DynValue.NewNumber(date.Second));
+                resultTable.Set("wday", DynValue.NewNumber((int)date.DayOfWeek + 1));
+                resultTable.Set("yday", DynValue.NewNumber(date.DayOfYear));
+                return DynValue.NewTable(resultTable);
+            }
+
+            var rendered = format
+                .Replace("%Y", date.Year.ToString("D4"))
+                .Replace("%m", date.Month.ToString("D2"))
+                .Replace("%d", date.Day.ToString("D2"))
+                .Replace("%H", date.Hour.ToString("D2"))
+                .Replace("%M", date.Minute.ToString("D2"))
+                .Replace("%S", date.Second.ToString("D2"))
+                .Replace("%c", date.ToString("u"));
+            return DynValue.NewString(rendered);
+        }, "os_date"));
+
+        hostTable.Set("os_remove", DynValue.NewCallback((ctx, args) =>
+        {
+            if (args.Count == 0)
+                return DynValue.NewTuple(DynValue.Nil, DynValue.NewString("os.remove(path) requires a path"));
+
+            var path = ToDynString(args[0]);
+            return runtime.FileSystem.Remove(path)
+                ? DynValue.NewTuple(DynValue.NewBoolean(true), DynValue.Nil)
+                : DynValue.NewTuple(DynValue.Nil, DynValue.NewString("remove failed: " + path));
+        }, "os_remove"));
+
+        hostTable.Set("os_rename", DynValue.NewCallback((ctx, args) =>
+        {
+            if (args.Count < 2)
+                return DynValue.NewTuple(DynValue.Nil, DynValue.NewString("os.rename(old, new) requires two paths"));
+
+            var oldPath = ToDynString(args[0]);
+            var newPath = ToDynString(args[1]);
+            if (!runtime.FileSystem.TryRead(oldPath, out var text))
+                return DynValue.NewTuple(DynValue.Nil, DynValue.NewString("cannot open " + oldPath));
+
+            var caps = GetCapabilities(uid);
+            if (!runtime.FileSystem.TryWrite(newPath, text, caps, out var writeError))
+                return DynValue.NewTuple(DynValue.Nil, DynValue.NewString(writeError));
+
+            runtime.FileSystem.Remove(oldPath);
+            return DynValue.NewTuple(DynValue.NewBoolean(true), DynValue.Nil);
+        }, "os_rename"));
+
+        hostTable.Set("os_execute", DynValue.NewCallback((ctx, args) =>
+        {
+            return DynValue.NewTuple(DynValue.Nil, DynValue.NewString("disabled in sandbox"), DynValue.NewNumber(0));
+        }, "os_execute"));
+
+        hostTable.Set("os_exit", DynValue.NewCallback((ctx, args) =>
+        {
+            if (TryComp<ProgrammableComputerComponent>(uid, out var comp))
+                ShutdownRuntime(uid, comp, runtime, "System halted by Lua.");
+            return DynValue.Void;
+        }, "os_exit"));
+
+        // Network API
+        hostTable.Set("net_is_available", DynValue.NewCallback((ctx, args) =>
+        {
+            var caps = GetCapabilities(uid);
+            var available = IsNetworkAllowed(caps, out var reason);
+            return DynValue.NewTuple(DynValue.NewBoolean(available), DynValue.NewString(reason));
+        }, "net_is_available"));
+
+        hostTable.Set("net_get", DynValue.NewCallback((ctx, args) =>
+        {
+            var url = args.Count > 0 ? ToDynString(args[0]) : string.Empty;
+            var response = ExecuteHttpRequest(uid, runtime, new HttpRequestSpec { Method = "GET", Url = url });
+            return DynValue.NewTuple(
+                DynValue.NewBoolean(response.Ok),
+                DynValue.NewNumber(response.Status),
+                DynValue.NewString(response.Body),
+                DynValue.NewString(response.Error ?? string.Empty)
+            );
+        }, "net_get"));
+
+        hostTable.Set("net_post", DynValue.NewCallback((ctx, args) =>
+        {
+            var url = args.Count > 0 ? ToDynString(args[0]) : string.Empty;
+            var body = args.Count > 1 ? ToDynString(args[1]) : string.Empty;
+            var response = ExecuteHttpRequest(uid, runtime, new HttpRequestSpec { Method = "POST", Url = url, Body = body });
+            return DynValue.NewTuple(
+                DynValue.NewBoolean(response.Ok),
+                DynValue.NewNumber(response.Status),
+                DynValue.NewString(response.Body),
+                DynValue.NewString(response.Error ?? string.Empty)
+            );
+        }, "net_post"));
+
+        hostTable.Set("net_request", DynValue.NewCallback((ctx, args) =>
+        {
+            if (args.Count == 0 || args[0].Type != DataType.Table)
+                throw new ScriptRuntimeException("net.request(options) requires an options table");
+
+            var options = args[0].Table;
+            var url = options.Get("url").Type == DataType.Nil ? string.Empty : ToDynString(options.Get("url"));
+            var method = options.Get("method").Type == DataType.Nil ? "GET" : ToDynString(options.Get("method"));
+            var body = options.Get("body").Type == DataType.Nil ? null : ToDynString(options.Get("body"));
+            var response = ExecuteHttpRequest(uid, runtime, new HttpRequestSpec { Url = url, Method = method, Body = body });
+            return DynValue.NewTuple(
+                DynValue.NewBoolean(response.Ok),
+                DynValue.NewNumber(response.Status),
+                DynValue.NewString(response.Body),
+                DynValue.NewString(response.Error ?? string.Empty)
+            );
+        }, "net_request"));
+
+        hostTable.Set("net_ws", DynValue.NewCallback((ctx, args) =>
+        {
+            var url = args.Count > 0 ? ToDynString(args[0]) : string.Empty;
+            return DynValue.NewNumber(ConnectWebSocket(uid, runtime, url));
+        }, "net_ws"));
+
+        hostTable.Set("net_send", DynValue.NewCallback((ctx, args) =>
+        {
+            if (args.Count < 2)
+                return DynValue.NewBoolean(false);
+            SendWebSocket(runtime, (int)args[0].Number, ToDynString(args[1]));
+            return DynValue.NewBoolean(true);
+        }, "net_send"));
+
+        hostTable.Set("net_receive", DynValue.NewCallback((ctx, args) =>
+        {
+            if (args.Count == 0)
+                return DynValue.Nil;
+            var timeout = args.Count > 1 ? (int)args[1].Number : _cfg.GetCVar(CCVars.ProgrammableComputerNetworkTimeoutMs);
+            var message = ReceiveWebSocket(runtime, (int)args[0].Number, timeout);
+            return message == null ? DynValue.Nil : DynValue.NewString(message);
+        }, "net_receive"));
+
+        hostTable.Set("net_close", DynValue.NewCallback((ctx, args) =>
+        {
+            if (args.Count > 0)
+                CloseWebSocket(runtime, (int)args[0].Number);
+            return DynValue.NewBoolean(true);
+        }, "net_close"));
+
+        script.Globals.Set("__host", DynValue.NewTable(hostTable));
+
+        // Initialize Lua standard library functions
+        script.DoString("""
+local h = __host
+
+event = {}
+function event.pull(filter)
+  while true do
+    local result = {coroutine.yield()}
+    if filter == nil or result[1] == filter then
+      return table.unpack(result)
+    end
+  end
+end
+
+term = {}
+function term.write(x) h.term_write(tostring(x or "")) end
+function term.writeLine(x) h.term_write_line(tostring(x or "")) end
+function term.newLine() h.term_new_line() end
+function term.clear() h.term_clear() end
+function term.clearLine() h.term_clear_line() end
+function term.setCursorPos(x, y) h.term_set_cursor_pos(x, y) end
+function term.getCursorPos() return h.term_get_cursor_pos() end
+function term.getSize() return h.term_get_size() end
+function term.setCursorBlink(v) h.term_set_cursor_blink(v) end
+function term.setTextColor(v) h.term_set_text_color(v) end
+function term.setBackgroundColor(v) h.term_set_background_color(v) end
+function term.getTextColor() return h.term_get_text_color() end
+function term.getBackgroundColor() return h.term_get_background_color() end
+function term.resetColors() h.term_reset_colors() end
+function term.scroll(n) h.term_scroll(n) end
+
+colors = {
+  black = 0, maroon = 1, green = 2, olive = 3, navy = 4, purple = 5, teal = 6, silver = 7,
+  gray = 8, red = 9, lime = 10, yellow = 11, blue = 12, magenta = 13, cyan = 14, white = 15
+}
+term.colors = colors
+
+function print(...)
+  local parts = {}
+  for i = 1, select('#', ...) do
+    parts[i] = tostring(select(i, ...))
+  end
+  term.writeLine(table.concat(parts, '\t'))
+end
+
+computer = {}
+function computer.tier()
+  local cpuTier, ramKiB, diskKiB, networkTier, expansion = h.computer_tier()
+  return { cpuTier = cpuTier, ramKiB = ramKiB, diskKiB = diskKiB, networkTier = networkTier, expansion = expansion }
+end
+function computer.limits()
+  local instructionBudget, timeSliceMs, memoryKiB, diskKiB, maxFiles, maxFileSizeKiB = h.computer_limits()
+  return { instructionBudget = instructionBudget, timeSliceMs = timeSliceMs, memoryKiB = memoryKiB, diskKiB = diskKiB, maxFiles = maxFiles, maxFileSizeKiB = maxFileSizeKiB }
+end
+function computer.exec(source, isTransient)
+  local ok, hasResult, result, err = h.computer_exec(source, isTransient ~= false)
+  return { ok = ok, hasResult = hasResult, result = result or "", error = err or "" }
+end
+function computer.reboot() h.computer_reboot() end
+function computer.shutdown() h.computer_shutdown() end
+
+fs = {}
+function fs.list(path) return h.fs_list(path or "/") end
+function fs.read(path) return h.fs_read(path) end
+function fs.write(path, text) return h.fs_write(path, text) end
+function fs.mkdir(path) return h.fs_mkdir(path) end
+function fs.remove(path) return h.fs_remove(path) end
+function fs.exists(path) return h.fs_exists(path) end
+
+io = {}
+function io.open(path, mode)
+  mode = mode or "r"
+  local canRead = mode:find("r") or mode:find("+")
+  local canWrite = mode:find("w") or mode:find("a") or mode:find("+")
+  if mode:sub(1,1) == "r" and not fs.exists(path) then return nil, "cannot open " .. path end
+  local content = fs.read(path) or ""
+  if mode:find("w") then content = "" end
+  local pos = mode:find("a") and (#content + 1) or 1
+  local closed = false
+  local function ensure_open() if closed then error("attempt to use a closed file") end end
+  local handle = {}
+  function handle:read(fmt)
+    ensure_open()
+    if not canRead then error("file not open for reading") end
+    fmt = fmt or "*l"
+    if fmt == "*a" then local out = content:sub(pos); pos = #content + 1; if out == "" then return nil end; return out end
+    if fmt == "*n" then local s,e = content:find("[%+%-]?%d+%.?%d*", pos); if not s then return nil end; pos = e + 1; return tonumber(content:sub(s,e)) end
+    local nl = content:find("\n", pos, true)
+    if not nl then if pos > #content then return nil end; local out = content:sub(pos); pos = #content + 1; return out end
+    local out = content:sub(pos, nl - 1); pos = nl + 1; return fmt == "*L" and (out .. "\n") or out
+  end
+  function handle:write(...)
+    ensure_open()
+    if not canWrite then error("file not open for writing") end
+    local chunks = {}
+    for i = 1, select('#', ...) do chunks[i] = tostring(select(i, ...)) end
+    local text = table.concat(chunks)
+    local before = content:sub(1, math.max(0, pos - 1))
+    local afterStart = math.min(#content + 1, pos + #text)
+    local after = content:sub(afterStart)
+    content = before .. text .. after
+    pos = pos + #text
+    return self
+  end
+  function handle:flush() ensure_open(); if not canWrite then return true end; return fs.write(path, content) end
+  function handle:close() if closed then return true end; if canWrite then self:flush() end; closed = true; return true end
+  function handle:seek(whence, offset)
+    ensure_open()
+    whence = whence or "cur"
+    offset = offset or 0
+    local base = whence == "set" and 1 or (whence == "cur" and pos or (whence == "end" and (#content + 1) or nil))
+    if base == nil then return nil, "invalid whence" end
+    local nextPos = base + offset
+    if nextPos < 1 then return nil, "invalid seek position" end
+    pos = nextPos
+    return pos - 1
+  end
+  return handle
+end
+function io.lines(path)
+  local file, err = io.open(path, "r")
+  if not file then error(err) end
+  return function()
+    local line = file:read("*l")
+    if line == nil then file:close(); return nil end
+    return line
+  end
+end
+function io.read(...) return nil end
+function io.write(...) term.write(table.concat({...}, "")) end
+function io.flush() return true end
+function io.close() return true end
+
+os = {}
+function os.clock() return h.os_clock() end
+function os.time(tbl)
+    if tbl == nil then return h.os_time_now() end
+    return h.os_time_from_table(tbl)
+end
+function os.difftime(t1, t2) return h.os_difftime(t1, t2) end
+function os.date(fmt, ts) return h.os_date(fmt, ts) end
+function os.remove(path) return h.os_remove(path) end
+function os.rename(oldPath, newPath) return h.os_rename(oldPath, newPath) end
+function os.getenv(_) return nil end
+function os.execute(_) return h.os_execute() end
+function os.exit(_) h.os_exit() end
+
+function loadfile(path)
+    local source = fs.read(path)
+    if source == nil then
+        return nil, "cannot open " .. tostring(path)
+    end
+    return load(source, path)
+end
+
+function dofile(path)
+    local fn, err = loadfile(path)
+    if not fn then error(err) end
+    return fn()
+end
+
+net = {}
+function net.isAvailable() local a,r = h.net_is_available(); return { available = a, reason = r } end
+local function resp(ok, status, body, err) return { ok = ok, status = status, body = body, error = err or "" } end
+function net.get(url) return resp(h.net_get(url)) end
+function net.post(url, body) return resp(h.net_post(url, body)) end
+function net.request(options) return resp(h.net_request(options)) end
+function net.ws(url) return h.net_ws(url) end
+function net.send(handle, payload) return h.net_send(handle, payload) end
+function net.receive(handle, timeout) return h.net_receive(handle, timeout) end
+function net.close(handle) return h.net_close(handle) end
+""");
+    }
+
+    // ─── Script loading and execution ─────────────────────────────────────
+
+    private bool TryLoadMoonSharpMainChunk(ComputerRuntime runtime, string source, out string error)
+    {
+        if (runtime.Script == null)
+        {
+            error = "MoonSharp script was not initialized.";
+            return false;
+        }
+
+        try
+        {
+            var closure = runtime.Script.LoadString(source, null, "@/boot/init.lua");
+            runtime.MainFunction = closure;
+            var coroutine = runtime.Script.CreateCoroutine(closure);
+            runtime.MainCoroutine = coroutine.Coroutine;
+            runtime.MainThread = runtime.MainCoroutine;
+            error = string.Empty;
+            return true;
+        }
+        catch (Exception e)
+        {
+            error = e.Message;
+            return false;
+        }
+    }
+
+    private bool TryResumeMoonSharp(ComputerRuntime runtime, ReadOnlySpan<LuaEventArg> args, out bool isDead, out string error)
+    {
+        isDead = false;
+
+        if (runtime.MainCoroutine == null || runtime.Script == null)
+        {
+            error = "Runtime error: Lua coroutine is missing.";
+            return false;
+        }
+
+        try
+        {
+            var dynArgs = new DynValue[args.Length];
+            for (var i = 0; i < args.Length; i++)
+            {
+                dynArgs[i] = args[i].Kind switch
+                {
+                    LuaEventArgKind.String => DynValue.NewString(args[i].StringValue ?? string.Empty),
+                    LuaEventArgKind.Number => DynValue.NewNumber(args[i].NumberValue),
+                    LuaEventArgKind.Boolean => DynValue.NewBoolean(args[i].BoolValue),
+                    _ => DynValue.Nil,
+                };
+            }
+
+            var result = runtime.MainCoroutine.Resume(dynArgs);
+            isDead = runtime.MainCoroutine.State == CoroutineState.Dead;
+            error = string.Empty;
+            return true;
+        }
+        catch (ScriptRuntimeException e)
+        {
+            error = "Runtime error: " + (e.DecoratedMessage ?? e.Message);
+            return false;
+        }
+        catch (Exception e)
+        {
+            error = "Fatal error: " + e.Message;
+            return false;
+        }
+    }
+
+    private bool TryExecuteMoonSharpSnippet(ComputerRuntime runtime, string source, out bool hasResult, out string result, out string error)
+    {
+        hasResult = false;
+        result = string.Empty;
+
+        if (runtime.Script == null)
+        {
+            error = "MoonSharp script was not initialized.";
+            return false;
+        }
+
+        try
+        {
+            var closure = runtime.Script.LoadString(source, null, "@exec");
+            var results = runtime.Script.Call(closure);
+            hasResult = results.Type != DataType.Void;
+            if (hasResult)
+                result = ToDynString(results);
+
+            error = string.Empty;
+            return true;
+        }
+        catch (ScriptRuntimeException e)
+        {
+            error = "Error: " + (e.DecoratedMessage ?? e.Message);
+            return false;
+        }
+        catch (Exception e)
+        {
+            error = "Error: " + e.Message;
+            return false;
+        }
+    }
+
+    // ─── Helper methods for DynValue conversion ──────────────────────────
+
+    private static string ToDynString(DynValue value)
+    {
+        if (value.Type == DataType.String)
+            return value.String;
+        return value.ToPrintString();
+    }
+
+    private static bool IsTruthy(DynValue value)
+    {
+        return value.Type switch
+        {
+            DataType.Nil => false,
+            DataType.Void => false,
+            DataType.Boolean => value.Boolean,
+            DataType.Number => Math.Abs(value.Number) > double.Epsilon,
+            _ => true,
+        };
+    }
+
+    private static bool TryResolveTerminalColor(DynValue value, out Color color)
+    {
+        if (value.Type == DataType.Number)
+        {
+            var index = (int)value.Number;
+            if (index >= 0 && index < TerminalPalette.Length)
+            {
+                color = TerminalPalette[index];
+                return true;
+            }
+
+            color = DefaultTerminalForeground;
+            return false;
+        }
+
+        if (value.Type == DataType.String)
+        {
+            try
+            {
+                color = Color.FromHex(value.String);
+                return true;
+            }
+            catch
+            {
+            }
+        }
+
+        color = DefaultTerminalForeground;
+        return false;
+    }
+
+    // ─── HTTP / WebSocket ───────────────────────────────────────────────────
+
+    private HttpResponse ExecuteHttpRequest(EntityUid uid, ComputerRuntime runtime, HttpRequestSpec request)
+    {
+        var capabilities = GetCapabilities(uid);
+        if (!IsNetworkAllowed(capabilities, out var reason))
+            return HttpResponse.Fail(reason);
+
+        if (!TryValidateRequest(runtime, request.Url, out var uri, out var error) || uri == null)
+            return HttpResponse.Fail(error);
+
+        if (!TryTakeRequestToken(runtime))
+            return HttpResponse.Fail("Rate limit exceeded.");
+
+        try
+        {
+            using var message = new HttpRequestMessage(new HttpMethod(request.Method), uri);
+            if (!string.IsNullOrEmpty(request.Body))
+                message.Content = new StringContent(request.Body, Encoding.UTF8, "text/plain");
+
+            using var cts = new CancellationTokenSource(_cfg.GetCVar(CCVars.ProgrammableComputerNetworkTimeoutMs));
+            var response = _http.Client.Send(message, cts.Token);
+
+            var maxResponseBytes = _cfg.GetCVar(CCVars.ProgrammableComputerNetworkMaxResponseBytes);
+            var responseBody = response.Content.ReadAsStringAsync(cts.Token).GetAwaiter().GetResult();
+            if (Encoding.UTF8.GetByteCount(responseBody) > maxResponseBytes)
+                responseBody = responseBody[..Math.Min(responseBody.Length, 1024)];
+
+            return HttpResponse.OkResult((int) response.StatusCode, responseBody);
+        }
+        catch (Exception e)
+        {
+            return HttpResponse.Fail(e.Message);
+        }
+    }
+
+    private int ConnectWebSocket(EntityUid uid, ComputerRuntime runtime, string url)
+    {
+        var capabilities = GetCapabilities(uid);
+        if (!IsNetworkAllowed(capabilities, out var reason))
+            throw new Exception(reason);
+
+        if (!TryValidateRequest(runtime, url, out var uri, out var error) || uri == null)
+            throw new Exception(error);
+
+        if (!(uri.Scheme.Equals("ws", StringComparison.OrdinalIgnoreCase) || uri.Scheme.Equals("wss", StringComparison.OrdinalIgnoreCase)))
+            throw new Exception("WebSocket URL must be ws:// or wss://");
+
+        if (!_cfg.GetCVar(CCVars.ProgrammableComputerNetworkWebSocketEnabled))
+            throw new Exception("WebSocket is disabled by server policy");
+
+        if (!TryTakeRequestToken(runtime))
+            throw new Exception("Rate limit exceeded.");
+
+        var socket = new ClientWebSocket();
+        using var cts = new CancellationTokenSource(_cfg.GetCVar(CCVars.ProgrammableComputerNetworkTimeoutMs));
+        socket.ConnectAsync(uri, cts.Token).GetAwaiter().GetResult();
+        return runtime.AddWebSocket(socket);
+    }
+
+    private void SendWebSocket(ComputerRuntime runtime, int handle, string payload)
+    {
+        if (!runtime.WebSockets.TryGetValue(handle, out var socket))
+            throw new Exception("Invalid websocket handle");
+
+        var maxFrame = _cfg.GetCVar(CCVars.ProgrammableComputerNetworkMaxWebSocketFrameBytes);
+        var bytes = Encoding.UTF8.GetBytes(payload);
+        if (bytes.Length > maxFrame)
+            throw new Exception("Payload exceeds websocket frame size limit");
+
+        socket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None)
+            .GetAwaiter()
+            .GetResult();
+    }
+
+    private string? ReceiveWebSocket(ComputerRuntime runtime, int handle, int timeoutMs)
+    {
+        if (!runtime.WebSockets.TryGetValue(handle, out var socket))
+            throw new Exception("Invalid websocket handle");
+
+        var buffer = new byte[Math.Max(256, _cfg.GetCVar(CCVars.ProgrammableComputerNetworkMaxWebSocketFrameBytes))];
+        using var cts = new CancellationTokenSource(timeoutMs);
+        try
+        {
+            var result = socket.ReceiveAsync(new ArraySegment<byte>(buffer), cts.Token)
+                .GetAwaiter()
+                .GetResult();
+            return result.Count <= 0 ? null : Encoding.UTF8.GetString(buffer, 0, result.Count);
+        }
+        catch (OperationCanceledException)
+        {
+            return null;
+        }
+    }
+
+    private void CloseWebSocket(ComputerRuntime runtime, int handle)
+    {
+        if (!runtime.WebSockets.Remove(handle, out var socket))
+            return;
+
+        try
+        {
+            socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "closed", CancellationToken.None)
+                .GetAwaiter()
+                .GetResult();
+        }
+        catch { /* best-effort */ }
+
+        socket.Dispose();
+    }
+
+    // ─── Network policy ─────────────────────────────────────────────────────
+
+    private bool IsNetworkAllowed(ComputerCapabilities capabilities, out string reason)
+    {
+        if (capabilities.NetworkTier <= 0)
+        {
+            reason = "No network module installed.";
+            return false;
+        }
+
+        if (!_cfg.GetCVar(CCVars.ProgrammableComputerNetworkEnabled))
+        {
+            reason = "Network access disabled by server policy.";
+            return false;
+        }
+
+        reason = string.Empty;
+        return true;
+    }
+
+    private bool TryValidateRequest(ComputerRuntime runtime, string url, out Uri? uri, out string error)
+    {
+        error = string.Empty;
+        uri = null;
+
+        if (!Uri.TryCreate(url, UriKind.Absolute, out uri))
+        {
+            error = "Invalid URL.";
+            return false;
+        }
+
+        if (uri.Host.Length == 0)
+        {
+            error = "URL host is missing.";
+            return false;
+        }
+
+        var allowInsecure = _cfg.GetCVar(CCVars.ProgrammableComputerNetworkAllowInsecureHttp);
+        var scheme = uri.Scheme.ToLowerInvariant();
+        var allowedScheme = scheme is "https" or "wss" || (allowInsecure && scheme is "http" or "ws");
+        if (!allowedScheme)
+        {
+            error = "URL scheme blocked by policy.";
+            return false;
+        }
+
+        var allowList = _cfg.GetCVar(CCVars.ProgrammableComputerNetworkAllowList)
+            .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+
+        if (allowList.Length == 0)
+        {
+            error = "No allowlisted hosts configured.";
+            return false;
+        }
+
+        var host = uri.Host.ToLowerInvariant();
+        if (!allowList.Any(pattern => HostMatches(host, pattern.ToLowerInvariant())))
+        {
+            error = "Host is not allowlisted.";
+            return false;
+        }
+
+        error = string.Empty;
+        return true;
+    }
+
+    private static bool TryReserveRam(ComputerRuntime runtime, int bytes, out string error)
+    {
+        if (bytes <= 0)
+        {
+            error = string.Empty;
+            return true;
+        }
+
+        var next = runtime.RamUsedBytes + bytes;
+        if (next <= runtime.RamLimitBytes)
+        {
+            runtime.RamUsedBytes = next;
+            error = string.Empty;
+            return true;
+        }
+
+        error = $"Out of memory: requested {bytes} bytes, used {runtime.RamUsedBytes}/{runtime.RamLimitBytes}.";
+        return false;
+    }
+
+    private static void ReleaseRam(ComputerRuntime runtime, int bytes)
+    {
+        if (bytes <= 0)
+            return;
+
+        runtime.RamUsedBytes = Math.Max(0, runtime.RamUsedBytes - bytes);
+    }
+
+    private void CrashRuntimeForOutOfMemory(EntityUid uid, ComputerRuntime runtime, string detail)
+    {
+        if (!TryComp<ProgrammableComputerComponent>(uid, out var component))
+            return;
+
+        ShutdownRuntime(uid, component, runtime, "System halted: out of memory.");
+        runtime.Terminal.NewLine();
+        runtime.Terminal.Write(detail);
+        UpdateUi(uid, component);
+    }
+
+    private static bool HostMatches(string host, string pattern)
+    {
+        if (pattern == "*") return true;
+        if (pattern.StartsWith("*.", StringComparison.Ordinal))
+            return host.EndsWith(pattern[1..], StringComparison.Ordinal);
+        return host.Equals(pattern, StringComparison.Ordinal);
+    }
+
+    private bool TryTakeRequestToken(ComputerRuntime runtime)
+    {
+        var limit = _cfg.GetCVar(CCVars.ProgrammableComputerNetworkRateLimitPerMinute);
+        var now = DateTimeOffset.UtcNow;
+        while (runtime.RequestWindow.Count > 0 && (now - runtime.RequestWindow.Peek()).TotalMinutes >= 1)
+            runtime.RequestWindow.Dequeue();
+
+        if (runtime.RequestWindow.Count >= limit)
+            return false;
+
+        runtime.RequestWindow.Enqueue(now);
+        return true;
+    }
+
+    // ─── Hardware / capabilities ─────────────────────────────────────────────
+
+    private ComputerCapabilities GetCapabilities(EntityUid uid)
+    {
+        var result = new ComputerCapabilities();
+        ApplySlot(uid, ProgrammableComputerComponent.CpuSlotName, ref result);
+        ApplySlot(uid, ProgrammableComputerComponent.RamSlotOneName, ref result);
+        ApplySlot(uid, ProgrammableComputerComponent.RamSlotTwoName, ref result);
+        ApplySlot(uid, ProgrammableComputerComponent.DiskSlotOneName, ref result);
+        ApplySlot(uid, ProgrammableComputerComponent.DiskSlotTwoName, ref result);
+        ApplySlot(uid, ProgrammableComputerComponent.NetworkSlotName, ref result);
+        ApplySlot(uid, ProgrammableComputerComponent.ExpansionSlotName, ref result);
+        return result;
+    }
+
+    private void ApplySlot(EntityUid uid, string slotId, ref ComputerCapabilities capabilities)
+    {
+        if (!_itemSlots.TryGetSlot(uid, slotId, out var slot) || slot.Item is not { } item)
+            return;
+
+        if (!TryComp<MachinePartComponent>(item, out var part))
+            return;
+
+        switch (part.PartType)
+        {
+            case ProgrammableComputerComponent.CpuMachinePart:
+                capabilities.CpuTier = Math.Max(capabilities.CpuTier, part.Rating);
+                capabilities.InstructionBudget = Math.Max(capabilities.InstructionBudget, part.Rating switch
+                {
+                    1 => 10_000,
+                    2 => 50_000,
+                    _ => 200_000,
+                });
+                capabilities.TimeSliceMs = Math.Max(capabilities.TimeSliceMs, part.Rating switch
+                {
+                    1 => 5,
+                    2 => 15,
+                    _ => 40,
+                });
+                break;
+
+            case ProgrammableComputerComponent.RamMachinePart:
+                capabilities.RamSlotsInstalled++;
+                capabilities.TotalRamKiB += part.Rating switch
+                {
+                    1 => 64,
+                    2 => 256,
+                    _ => 1024,
+                };
+                break;
+
+            case ProgrammableComputerComponent.DiskMachinePart:
+                capabilities.DiskSlotsInstalled++;
+                capabilities.TotalDiskKiB += part.Rating switch
+                {
+                    1 => 128,
+                    2 => 1024,
+                    _ => 8192,
+                };
+                capabilities.MaxFiles += part.Rating switch
+                {
+                    1 => 32,
+                    2 => 128,
+                    _ => 512,
+                };
+                capabilities.MaxFileSizeKiB = Math.Max(capabilities.MaxFileSizeKiB, part.Rating switch
+                {
+                    1 => 16,
+                    2 => 64,
+                    _ => 256,
+                });
+                break;
+
+            case ProgrammableComputerComponent.NetworkMachinePart:
+                capabilities.NetworkTier = Math.Max(capabilities.NetworkTier, part.Rating);
+                break;
+
+            case ProgrammableComputerComponent.ExpansionMachinePart:
+                capabilities.ExpansionModules++;
+                break;
+        }
+    }
+
+    private static string FormatKiB(int value) =>
+        value >= 1024 ? $"{value / 1024.0:F1} MiB" : $"{value} KiB";
+
+    // ─── Inner types ─────────────────────────────────────────────────────────
+
+    private enum LuaEventArgKind
+    {
+        String,
+        Number,
+        Boolean,
+    }
+
+    private readonly record struct LuaEventArg(LuaEventArgKind Kind, string? StringValue, double NumberValue, bool BoolValue)
+    {
+        public static LuaEventArg FromString(string value) => new(LuaEventArgKind.String, value, 0, false);
+        public static LuaEventArg FromNumber(double value) => new(LuaEventArgKind.Number, null, value, false);
+        public static LuaEventArg FromBoolean(bool value) => new(LuaEventArgKind.Boolean, null, 0, value);
+    }
+
+    private struct ComputerCapabilities
+    {
+        public int CpuTier;
+        public int RamSlotsInstalled;
+        public int DiskSlotsInstalled;
+        public int NetworkTier;
+        public int ExpansionModules;
+        public int InstructionBudget;
+        public int TimeSliceMs;
+        public int TotalRamKiB;
+        public int TotalDiskKiB;
+        public int MaxFiles;
+        public int MaxFileSizeKiB;
+    }
+
+    private sealed class ComputerRuntime : IDisposable
+    {
+        public Script? Script;
+        public DynValue? MainFunction;
+        public Coroutine? MainCoroutine;
+        public VirtualFileSystem FileSystem { get; } = new();
+        public Dictionary<int, ClientWebSocket> WebSockets { get; } = new();
+        public Queue<DateTimeOffset> RequestWindow { get; } = new();
+        public int NextSocketHandle { get; private set; } = 1;
+        public TerminalBuffer Terminal { get; } = new();
+        public DateTimeOffset StartedAt { get; set; } = DateTimeOffset.UtcNow;
+        public int RamLimitBytes { get; set; }
+        public int RamUsedBytes { get; set; }
+        public object? MainThread;
+        public bool IsRunning;
+        public bool IsPoweredOn;
+        public bool IsBooting;
+        public TimeSpan BootReadyAt;
+        public int BootStage;
+        public ComputerCapabilities BootCapabilities;
+
+        public int AddWebSocket(ClientWebSocket socket)
+        {
+            var handle = NextSocketHandle++;
+            WebSockets[handle] = socket;
+            return handle;
+        }
+
+        public void Dispose()
+        {
+            foreach (var (_, socket) in WebSockets)
+            {
+                try { socket.Dispose(); }
+                catch { /* ignore */ }
+            }
+            WebSockets.Clear();
+        }
+    }
+
+    /// <summary>Fixed terminal cell grid with cursor and color tracking.</summary>
+    private sealed class TerminalBuffer
+    {
+        private const int W = ProgrammableComputerComponent.TerminalWidth;
+        private const int H = ProgrammableComputerComponent.TerminalHeight;
+
+        private readonly TerminalCell[,] _cells = new TerminalCell[H, W];
+
+        public bool CursorBlink = true;
+        public int CursorX { get; private set; } = 1;
+        public int CursorY { get; private set; } = 1;
+        public Color ForegroundColor { get; private set; } = DefaultTerminalForeground;
+        public Color BackgroundColor { get; private set; } = DefaultTerminalBackground;
+
+        public TerminalBuffer()
+        {
+            Clear();
+        }
+
+        public void Clear()
+        {
+            FillScreen();
+            CursorX = 1;
+            CursorY = 1;
+        }
+
+        public void ClearLine(int y)
+        {
+            if (y < 1 || y > H) return;
+
+            for (var c = 0; c < W; c++)
+                _cells[y - 1, c] = BlankCell();
+        }
+
+        public void SetTextColor(Color color)
+        {
+            ForegroundColor = color;
+        }
+
+        public void SetBackgroundColor(Color color)
+        {
+            BackgroundColor = color;
+        }
+
+        public void ResetColors()
+        {
+            ForegroundColor = DefaultTerminalForeground;
+            BackgroundColor = DefaultTerminalBackground;
+        }
+
+        public void SetCursorPos(int x, int y)
+        {
+            CursorX = Math.Clamp(x, 1, W);
+
+            if (y < 1)
+            {
+                CursorY = 1;
+                return;
+            }
+
+            if (y <= H)
+            {
+                CursorY = y;
+                return;
+            }
+
+            // Moving the cursor below the viewport should behave like a terminal:
+            // scroll up by the overflow and keep the cursor on the last visible row.
+            Scroll(y - H);
+            CursorY = H;
+        }
+
+        public void Write(string text)
+        {
+            foreach (var ch in text)
+            {
+                if (ch == '\n')
+                {
+                    NewLine();
+                    continue;
+                }
+
+                if (ch == '\r')
+                {
+                    CursorX = 1;
+                    continue;
+                }
+
+                if (CursorX > W)
+                    NewLine();
+
+                if (CursorX >= 1 && CursorX <= W && CursorY >= 1 && CursorY <= H)
+                    _cells[CursorY - 1, CursorX - 1] = new TerminalCell(ch, ForegroundColor, BackgroundColor);
+
+                CursorX++;
+            }
+        }
+
+        public void NewLine()
+        {
+            CursorX = 1;
+            CursorY++;
+            if (CursorY > H)
+            {
+                ScrollInternal(1);
+                CursorY = H;
+            }
+        }
+
+        /// <summary>Explicit scroll: shifts content but leaves cursor at same coordinates.</summary>
+        public void Scroll(int n)
+        {
+            if (n == 0) return;
+            var count = Math.Abs(n);
+            for (var i = 0; i < count; i++)
+            {
+                if (n > 0)
+                    ScrollInternal(1);
+                else
+                    ScrollInternal(-1);
+            }
+        }
+
+        private void ScrollInternal(int dir)
+        {
+            if (dir > 0)
+            {
+                for (var row = 0; row < H - 1; row++)
+                    for (var col = 0; col < W; col++)
+                        _cells[row, col] = _cells[row + 1, col];
+                for (var col = 0; col < W; col++)
+                    _cells[H - 1, col] = BlankCell();
+            }
+            else
+            {
+                for (var row = H - 1; row > 0; row--)
+                    for (var col = 0; col < W; col++)
+                        _cells[row, col] = _cells[row - 1, col];
+                for (var col = 0; col < W; col++)
+                    _cells[0, col] = BlankCell();
+            }
+        }
+
+        public ProgrammableComputerTerminalCell[] GetCells()
+        {
+            var cells = new ProgrammableComputerTerminalCell[W * H];
+            var index = 0;
+
+            for (var row = 0; row < H; row++)
+            {
+                for (var col = 0; col < W; col++)
+                {
+                    var cell = _cells[row, col];
+                    cells[index++] = new ProgrammableComputerTerminalCell(cell.Glyph, cell.Foreground, cell.Background);
+                }
+            }
+
+            return cells;
+        }
+
+        private void FillScreen()
+        {
+            for (var row = 0; row < H; row++)
+            {
+                for (var col = 0; col < W; col++)
+                {
+                    _cells[row, col] = BlankCell();
+                }
+            }
+        }
+
+        private TerminalCell BlankCell()
+        {
+            return new TerminalCell('\0', ForegroundColor, BackgroundColor);
+        }
+
+        private readonly record struct TerminalCell(char Glyph, Color Foreground, Color Background);
+    }
+
+    private sealed class VirtualFileSystem
+    {
+        private readonly Dictionary<string, string> _files = new();
+        private readonly HashSet<string> _directories = new(StringComparer.Ordinal) { "/" };
+
+        public int UsedKiB => (int) Math.Ceiling(_files.Sum(f => Encoding.UTF8.GetByteCount(f.Value)) / 1024.0);
+
+        public bool Exists(string path)
+        {
+            var normalized = Normalize(path);
+            return _files.ContainsKey(normalized) || _directories.Contains(normalized);
+        }
+
+        public IEnumerable<string> ListDirectory(string path)
+        {
+            var normalized = Normalize(path);
+            if (!_directories.Contains(normalized))
+                return ["Directory not found."];
+
+            var prefix = normalized == "/" ? "/" : normalized + "/";
+            var results = new SortedSet<string>(StringComparer.Ordinal);
+
+            foreach (var directory in _directories)
+            {
+                if (!directory.StartsWith(prefix, StringComparison.Ordinal) || directory == normalized)
+                    continue;
+                var rest = directory[prefix.Length..];
+                if (rest.Length == 0) continue;
+                var idx = rest.IndexOf('/');
+                results.Add((idx >= 0 ? rest[..idx] : rest) + "/");
+            }
+
+            foreach (var file in _files.Keys)
+            {
+                if (!file.StartsWith(prefix, StringComparison.Ordinal)) continue;
+                var rest = file[prefix.Length..];
+                var idx = rest.IndexOf('/');
+                var head = idx >= 0 ? rest[..idx] : rest;
+                if (head.Length > 0) results.Add(head);
+            }
+
+            return results.Count == 0 ? ["(empty)"] : results;
+        }
+
+        public bool TryRead(string path, out string text) =>
+            _files.TryGetValue(Normalize(path), out text!);
+
+        public bool TryWrite(string path, string text, ComputerCapabilities capabilities, out string error)
+        {
+            error = string.Empty;
+            var normalized = Normalize(path);
+            var parent = ParentDirectory(normalized);
+
+            if (!_directories.Contains(parent))
+            {
+                error = "Directory does not exist.";
+                return false;
+            }
+
+            var bytes = Encoding.UTF8.GetByteCount(text);
+            if (bytes > capabilities.MaxFileSizeKiB * 1024)
+            {
+                error = "File exceeds per-file size limit.";
+                return false;
+            }
+
+            if (!_files.ContainsKey(normalized) && _files.Count >= capabilities.MaxFiles)
+            {
+                error = "File count limit reached.";
+                return false;
+            }
+
+            var oldBytes = _files.TryGetValue(normalized, out var old) ? Encoding.UTF8.GetByteCount(old) : 0;
+            var used = _files.Sum(f => Encoding.UTF8.GetByteCount(f.Value));
+            if (used - oldBytes + bytes > capabilities.TotalDiskKiB * 1024)
+            {
+                error = "Disk capacity exceeded.";
+                return false;
+            }
+
+            _files[normalized] = text;
+            return true;
+        }
+
+        public bool Remove(string path)
+        {
+            var normalized = Normalize(path);
+            if (_files.Remove(normalized))
+                return true;
+
+            if (!_directories.Contains(normalized) || normalized == "/")
+                return false;
+
+            var prefix = normalized + "/";
+            if (_files.Keys.Any(f => f.StartsWith(prefix, StringComparison.Ordinal)))
+                return false;
+            if (_directories.Any(d => d != normalized && d.StartsWith(prefix, StringComparison.Ordinal)))
+                return false;
+
+            _directories.Remove(normalized);
+            return true;
+        }
+
+        public bool TryCreateDirectory(string path)
+        {
+            var normalized = Normalize(path);
+            if (_directories.Contains(normalized))
+                return true;
+
+            var parent = ParentDirectory(normalized);
+            if (!_directories.Contains(parent))
+                return false;
+
+            _directories.Add(normalized);
+            return true;
+        }
+
+        private static string Normalize(string path)
+        {
+            if (string.IsNullOrEmpty(path))
+                return "/";
+
+            path = path.Replace('\\', '/');
+            if (!path.StartsWith('/'))
+                path = "/" + path;
+
+            var parts = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            var cleaned = new List<string>();
+            foreach (var part in parts)
+            {
+                if (part == ".") continue;
+                if (part == "..")
+                {
+                    if (cleaned.Count > 0) cleaned.RemoveAt(cleaned.Count - 1);
+                }
+                else
+                {
+                    cleaned.Add(part);
+                }
+            }
+            return "/" + string.Join('/', cleaned);
+        }
+
+        private static string ParentDirectory(string normalized)
+        {
+            var idx = normalized.LastIndexOf('/');
+            return idx <= 0 ? "/" : normalized[..idx];
+        }
+    }
+
+    private record struct HttpRequestSpec
+    {
+        public string Url;
+        public string Method;
+        public string? Body;
+    }
+
+    private record struct HttpResponse
+    {
+        public bool Ok;
+        public int Status;
+        public string Body;
+        public string? Error;
+
+        public static HttpResponse Fail(string error) =>
+            new() { Ok = false, Status = 0, Body = string.Empty, Error = error };
+
+        public static HttpResponse OkResult(int status, string body) =>
+            new() { Ok = true, Status = status, Body = body, Error = null };
+    }
+}
+
+internal sealed class DenyAllScriptLoader : IScriptLoader
+{
+    public object LoadFile(string file, Table globalContext)
+    {
+        throw new ScriptRuntimeException("Script file loading is disabled in programmable computer sandbox.");
+    }
+
+    [Obsolete]
+    public string ResolveFileName(string filename, Table globalContext)
+    {
+        throw new ScriptRuntimeException("Script file loading is disabled in programmable computer sandbox.");
+    }
+
+    public string ResolveModuleName(string modname, Table globalContext)
+    {
+        throw new ScriptRuntimeException("Module loading is disabled in programmable computer sandbox.");
+    }
+}

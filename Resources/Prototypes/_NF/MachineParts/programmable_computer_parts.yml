@@ -1,0 +1,24 @@
+- type: machinePart
+  id: ProgrammableComputerCpu
+  name: programmable-computer-part-name-cpu
+  stockPartPrototype: ProgrammableComputerCpuTier1
+
+- type: machinePart
+  id: ProgrammableComputerRam
+  name: programmable-computer-part-name-ram
+  stockPartPrototype: ProgrammableComputerRamTier1
+
+- type: machinePart
+  id: ProgrammableComputerDisk
+  name: programmable-computer-part-name-disk
+  stockPartPrototype: ProgrammableComputerDiskTier1
+
+- type: machinePart
+  id: ProgrammableComputerNetwork
+  name: programmable-computer-part-name-network
+  stockPartPrototype: ProgrammableComputerNetworkTier1
+
+- type: machinePart
+  id: ProgrammableComputerExpansion
+  name: programmable-computer-part-name-expansion
+  stockPartPrototype: ProgrammableComputerTimerModule

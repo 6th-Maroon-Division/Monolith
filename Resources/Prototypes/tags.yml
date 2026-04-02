@@ -1015,6 +1015,21 @@
   id: PrisonUniform
 
 - type: Tag
+  id: ProgrammableComputerCpuPart
+
+- type: Tag
+  id: ProgrammableComputerDiskPart
+
+- type: Tag
+  id: ProgrammableComputerExpansionPart
+
+- type: Tag
+  id: ProgrammableComputerNetworkPart
+
+- type: Tag
+  id: ProgrammableComputerRamPart
+
+- type: Tag
   id: ProximitySensor
 
 - type: Tag

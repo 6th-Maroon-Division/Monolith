@@ -259,6 +259,17 @@
 
 - type: entity
   parent: BaseComputerCircuitboard
+  id: ProgrammableComputerCircuitboard
+  name: programmable computer board
+  description: A computer printed circuit board for a programmable Lua computer.
+  components:
+    - type: Sprite
+      state: cpu_command
+    - type: ComputerBoard
+      prototype: ComputerProgrammable
+
+- type: entity
+  parent: BaseComputerCircuitboard
   id: TechDiskComputerCircuitboard
   name: tech disk terminal board
   description: A computer printed circuit board for a technology disk terminal.

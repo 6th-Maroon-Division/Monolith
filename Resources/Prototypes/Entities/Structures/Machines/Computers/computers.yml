@@ -271,6 +271,102 @@
     board: SyndicateShuttleConsoleCircuitboard
 
 - type: entity
+  parent: BaseComputerAiAccess
+  id: ComputerProgrammable
+  name: programmable computer
+  description: A modular terminal for sandboxed Lua programs and external interfaces.
+  components:
+  - type: Computer
+    board: ProgrammableComputerCircuitboard
+  - type: ProgrammableComputer
+  - type: Sprite
+    layers:
+    - map: ["computerLayerBody"]
+      state: computer
+    - map: ["computerLayerKeyboard"]
+      state: generic_keyboard
+    - map: ["computerLayerScreen"]
+      state: generic
+    - map: ["computerLayerKeys"]
+      state: generic_keys
+    - map: [ "enum.WiresVisualLayers.MaintenancePanel" ]
+      state: generic_panel_open
+  - type: ActivatableUI
+    singleUser: true
+    key: enum.ProgrammableComputerUiKey.Key
+  - type: UserInterface
+    interfaces:
+      enum.ProgrammableComputerUiKey.Key:
+        type: ProgrammableComputerBoundUserInterface
+      enum.WiresUiKey.Key:
+        type: WiresBoundUserInterface
+  - type: ItemSlots
+    slots:
+      cpu_slot:
+        name: programmable-computer-slot-cpu
+        insertSound:
+          path: /Audio/Machines/terminal_insert_disc.ogg
+        ejectSound:
+          path: /Audio/Machines/terminal_insert_disc.ogg
+        whitelist:
+          tags:
+          - ProgrammableComputerCpuPart
+      ram_slot_1:
+        name: programmable-computer-slot-ram-1
+        insertSound:
+          path: /Audio/Machines/terminal_insert_disc.ogg
+        ejectSound:
+          path: /Audio/Machines/terminal_insert_disc.ogg
+        whitelist:
+          tags:
+          - ProgrammableComputerRamPart
+      ram_slot_2:
+        name: programmable-computer-slot-ram-2
+        insertSound:
+          path: /Audio/Machines/terminal_insert_disc.ogg
+        ejectSound:
+          path: /Audio/Machines/terminal_insert_disc.ogg
+        whitelist:
+          tags:
+          - ProgrammableComputerRamPart
+      disk_slot_1:
+        name: programmable-computer-slot-disk-1
+        insertSound:
+          path: /Audio/Machines/terminal_insert_disc.ogg
+        ejectSound:
+          path: /Audio/Machines/terminal_insert_disc.ogg
+        whitelist:
+          tags:
+          - ProgrammableComputerDiskPart
+      disk_slot_2:
+        name: programmable-computer-slot-disk-2
+        insertSound:
+          path: /Audio/Machines/terminal_insert_disc.ogg
+        ejectSound:
+          path: /Audio/Machines/terminal_insert_disc.ogg
+        whitelist:
+          tags:
+          - ProgrammableComputerDiskPart
+      network_slot:
+        name: programmable-computer-slot-network
+        insertSound:
+          path: /Audio/Machines/terminal_insert_disc.ogg
+        ejectSound:
+          path: /Audio/Machines/terminal_insert_disc.ogg
+        whitelist:
+          tags:
+          - ProgrammableComputerNetworkPart
+      expansion_slot:
+        name: programmable-computer-slot-expansion
+        insertSound:
+          path: /Audio/Machines/terminal_insert_disc.ogg
+        ejectSound:
+          path: /Audio/Machines/terminal_insert_disc.ogg
+        whitelist:
+          tags:
+          - ProgrammableComputerExpansionPart
+
+- type: entity
   parent: BaseComputerShuttle
   id: ComputerShuttleCargo
   name: cargo shuttle console
