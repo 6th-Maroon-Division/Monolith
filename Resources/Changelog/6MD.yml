@@ -31,3 +31,10 @@ Entries:
   id: 2
   time: '2026-03-31T15:09:54.0000000+00:00'
   url: https://github.com/6th-Maroon-Division/Monolith/pull/4
+- author: Marco-de-Sa
+  changes:
+    - type: Tweak
+      message: gas temp on the gas buy point is now 293.15 kelvin
+  id: 3
+  time: '2026-04-03T00:57:15.0000000+00:00'
+  url: https://github.com/6th-Maroon-Division/Monolith/pull/6
