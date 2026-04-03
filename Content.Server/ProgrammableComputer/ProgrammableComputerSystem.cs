@@ -65,6 +65,7 @@ public sealed class ProgrammableComputerSystem : EntitySystem
         SubscribeLocalEvent<ProgrammableComputerComponent, ComponentShutdown>(OnComponentShutdown);
         SubscribeLocalEvent<ProgrammableComputerComponent, BeforeActivatableUIOpenEvent>(OnBeforeUiOpen);
         SubscribeLocalEvent<ProgrammableComputerComponent, ProgrammableComputerKeyMessage>(OnKeyInput);
+        SubscribeLocalEvent<ProgrammableComputerComponent, ProgrammableComputerTouchMessage>(OnTouchInput);
         SubscribeLocalEvent<ProgrammableComputerComponent, ProgrammableComputerPowerActionMessage>(OnPowerAction);
     }
 
@@ -122,6 +123,23 @@ public sealed class ProgrammableComputerSystem : EntitySystem
             LuaEventArg.FromNumber(args.Layout));
     }
 
+    private void OnTouchInput(EntityUid uid, ProgrammableComputerComponent component, ProgrammableComputerTouchMessage args)
+    {
+        var runtime = EnsureRuntime(uid);
+        if (!runtime.IsRunning)
+            return;
+
+        var capabilities = GetCapabilities(uid);
+        if (capabilities.GpuTier < 2)
+            return;
+
+        PumpCoroutine(uid, component, runtime,
+            LuaEventArg.FromString("touch"),
+            LuaEventArg.FromNumber(args.X),
+            LuaEventArg.FromNumber(args.Y),
+            LuaEventArg.FromNumber(1));
+    }
+
     private void OnPowerAction(EntityUid uid, ProgrammableComputerComponent component, ProgrammableComputerPowerActionMessage args)
     {
         var runtime = EnsureRuntime(uid);
@@ -145,6 +163,7 @@ public sealed class ProgrammableComputerSystem : EntitySystem
     private void StartBootSequence(EntityUid uid, ProgrammableComputerComponent component, ComputerRuntime runtime)
     {
         var capabilities = GetCapabilities(uid);
+        var (terminalWidth, terminalHeight) = GetTerminalSizeForGpuTier(capabilities.GpuTier);
         runtime.IsPoweredOn = true;
         runtime.IsBooting = true;
         runtime.IsRunning = false;
@@ -155,6 +174,7 @@ public sealed class ProgrammableComputerSystem : EntitySystem
         runtime.BootCapabilities = capabilities;
         runtime.BootStage = 0;
         runtime.BootReadyAt = _timing.CurTime + BootStageDelay;
+        runtime.Terminal = new TerminalBuffer(terminalWidth, terminalHeight);
         runtime.Terminal.Clear();
         runtime.Terminal.Write("6MD Modular Bios v6.7FU");
         runtime.Terminal.NewLine();
@@ -168,6 +188,8 @@ public sealed class ProgrammableComputerSystem : EntitySystem
         runtime.Terminal.Write("Disk Module  : Detecting...");
         runtime.Terminal.NewLine();
         runtime.Terminal.Write("Net Module   : Detecting...");
+        runtime.Terminal.NewLine();
+        runtime.Terminal.Write("GPU Module   : Detecting...");
         runtime.Terminal.NewLine();
         runtime.Terminal.Write("Expansion    : Detecting...");
 
@@ -217,15 +239,24 @@ public sealed class ProgrammableComputerSystem : EntitySystem
             case 4:
                 runtime.Terminal.SetCursorPos(1, 8);
                 runtime.Terminal.ClearLine(8);
+                runtime.Terminal.Write($"GPU Module   : {(runtime.BootCapabilities.GpuTier > 0 ? $"Tier {runtime.BootCapabilities.GpuTier} [OK]" : "EMPTY [OPTIONAL]")}");
+                runtime.BootStage = 5;
+                runtime.BootReadyAt = now + BootStageDelay;
+                UpdateUi(uid, component);
+                return;
+
+            case 5:
+                runtime.Terminal.SetCursorPos(1, 9);
+                runtime.Terminal.ClearLine(9);
                 runtime.Terminal.Write($"Expansion    : {(runtime.BootCapabilities.ExpansionModules > 0 ? $"{runtime.BootCapabilities.ExpansionModules} module(s) [OK]" : "EMPTY")}");
-                runtime.Terminal.SetCursorPos(1, 10);
-                runtime.Terminal.ClearLine(10);
+                runtime.Terminal.SetCursorPos(1, 11);
+                runtime.Terminal.ClearLine(11);
                 if (HasRequiredHardware(runtime.BootCapabilities))
                     runtime.Terminal.Write("POST complete. Initializing Lua VM...");
                 else
                     runtime.Terminal.Write($"POST failed. Missing required {GetMissingRequiredHardware(runtime.BootCapabilities)}.");
 
-                runtime.BootStage = 5;
+                runtime.BootStage = 6;
                 runtime.BootReadyAt = now + BootStageDelay;
                 UpdateUi(uid, component);
                 return;
@@ -356,6 +387,16 @@ public sealed class ProgrammableComputerSystem : EntitySystem
                && capabilities.TotalRamKiB > 0;
     }
 
+    private static (int Width, int Height) GetTerminalSizeForGpuTier(int gpuTier)
+    {
+        return gpuTier switch
+        {
+            >= 3 => (100, 30),
+            >= 2 => (80, 25),
+            _ => (ProgrammableComputerComponent.TerminalWidth, ProgrammableComputerComponent.TerminalHeight),
+        };
+    }
+
     private static string GetMissingRequiredHardware(ComputerCapabilities capabilities)
     {
         var missingCpu = capabilities.CpuTier <= 0;
@@ -418,8 +459,8 @@ public sealed class ProgrammableComputerSystem : EntitySystem
         runtime.IsPoweredOn = false;
         runtime.MainThread = null;
 
-        runtime.Terminal.SetCursorPos(1, 12);
-        runtime.Terminal.ClearLine(12);
+        runtime.Terminal.SetCursorPos(1, 13);
+        runtime.Terminal.ClearLine(13);
         runtime.Terminal.Write("Press Start to power on.");
 
         UpdateUi(uid, component);
@@ -448,8 +489,8 @@ public sealed class ProgrammableComputerSystem : EntitySystem
             string.Empty,
             string.Empty,
             string.Empty,
-            ProgrammableComputerComponent.TerminalWidth,
-            ProgrammableComputerComponent.TerminalHeight,
+            runtime.Terminal.Width,
+            runtime.Terminal.Height,
             runtime.Terminal.CursorX,
             runtime.Terminal.CursorY,
             runtime.Terminal.CursorBlink && runtime.IsPoweredOn,
@@ -539,17 +580,23 @@ public sealed class ProgrammableComputerSystem : EntitySystem
 
         hostTable.Set("term_get_size", DynValue.NewCallback((ctx, args) =>
         {
-            return DynValue.NewTuple(DynValue.NewNumber(ProgrammableComputerComponent.TerminalWidth), DynValue.NewNumber(ProgrammableComputerComponent.TerminalHeight));
+            return DynValue.NewTuple(DynValue.NewNumber(runtime.Terminal.Width), DynValue.NewNumber(runtime.Terminal.Height));
         }, "term_get_size"));
 
         hostTable.Set("term_set_cursor_blink", DynValue.NewCallback((ctx, args) =>
         {
+            if (GetCapabilities(uid).GpuTier < 1)
+                throw new ScriptRuntimeException("term.setCursorBlink requires GPU tier 1+");
+
             runtime.Terminal.CursorBlink = args.Count > 0 && IsTruthy(args[0]);
             return DynValue.Void;
         }, "term_set_cursor_blink"));
 
         hostTable.Set("term_set_text_color", DynValue.NewCallback((ctx, args) =>
         {
+            if (GetCapabilities(uid).GpuTier < 1)
+                throw new ScriptRuntimeException("term.setTextColor requires GPU tier 1+");
+
             if (args.Count == 0 || !TryResolveTerminalColor(args[0], out var color))
                 throw new ScriptRuntimeException("term.setTextColor(color) requires a palette index or #RRGGBB value");
 
@@ -559,6 +606,9 @@ public sealed class ProgrammableComputerSystem : EntitySystem
 
         hostTable.Set("term_set_background_color", DynValue.NewCallback((ctx, args) =>
         {
+            if (GetCapabilities(uid).GpuTier < 1)
+                throw new ScriptRuntimeException("term.setBackgroundColor requires GPU tier 1+");
+
             if (args.Count == 0 || !TryResolveTerminalColor(args[0], out var color))
                 throw new ScriptRuntimeException("term.setBackgroundColor(color) requires a palette index or #RRGGBB value");
 
@@ -568,16 +618,25 @@ public sealed class ProgrammableComputerSystem : EntitySystem
 
         hostTable.Set("term_get_text_color", DynValue.NewCallback((ctx, args) =>
         {
+            if (GetCapabilities(uid).GpuTier < 1)
+                return DynValue.NewString(DefaultTerminalForeground.ToHex());
+
             return DynValue.NewString(runtime.Terminal.ForegroundColor.ToHex());
         }, "term_get_text_color"));
 
         hostTable.Set("term_get_background_color", DynValue.NewCallback((ctx, args) =>
         {
+            if (GetCapabilities(uid).GpuTier < 1)
+                return DynValue.NewString(DefaultTerminalBackground.ToHex());
+
             return DynValue.NewString(runtime.Terminal.BackgroundColor.ToHex());
         }, "term_get_background_color"));
 
         hostTable.Set("term_reset_colors", DynValue.NewCallback((ctx, args) =>
         {
+            if (GetCapabilities(uid).GpuTier < 1)
+                throw new ScriptRuntimeException("term.resetColors requires GPU tier 1+");
+
             runtime.Terminal.ResetColors();
             return DynValue.Void;
         }, "term_reset_colors"));
@@ -598,6 +657,7 @@ public sealed class ProgrammableComputerSystem : EntitySystem
                 DynValue.NewNumber(capabilities.TotalRamKiB),
                 DynValue.NewNumber(capabilities.TotalDiskKiB),
                 DynValue.NewNumber(capabilities.NetworkTier),
+                DynValue.NewNumber(capabilities.GpuTier),
                 DynValue.NewNumber(capabilities.ExpansionModules)
             );
         }, "computer_tier"));
@@ -950,8 +1010,8 @@ end
 
 computer = {}
 function computer.tier()
-  local cpuTier, ramKiB, diskKiB, networkTier, expansion = h.computer_tier()
-  return { cpuTier = cpuTier, ramKiB = ramKiB, diskKiB = diskKiB, networkTier = networkTier, expansion = expansion }
+    local cpuTier, ramKiB, diskKiB, networkTier, gpuTier, expansion = h.computer_tier()
+    return { cpuTier = cpuTier, ramKiB = ramKiB, diskKiB = diskKiB, networkTier = networkTier, gpuTier = gpuTier, expansion = expansion }
 end
 function computer.limits()
   local instructionBudget, timeSliceMs, memoryKiB, diskKiB, maxFiles, maxFileSizeKiB = h.computer_limits()
@@ -1480,6 +1540,7 @@ function net.close(handle) return h.net_close(handle) end
         ApplySlot(uid, ProgrammableComputerComponent.DiskSlotOneName, ref result);
         ApplySlot(uid, ProgrammableComputerComponent.DiskSlotTwoName, ref result);
         ApplySlot(uid, ProgrammableComputerComponent.NetworkSlotName, ref result);
+        ApplySlot(uid, ProgrammableComputerComponent.GpuSlotName, ref result);
         ApplySlot(uid, ProgrammableComputerComponent.ExpansionSlotName, ref result);
         return result;
     }
@@ -1546,6 +1607,10 @@ function net.close(handle) return h.net_close(handle) end
                 capabilities.NetworkTier = Math.Max(capabilities.NetworkTier, part.Rating);
                 break;
 
+            case ProgrammableComputerComponent.GpuMachinePart:
+                capabilities.GpuTier = Math.Max(capabilities.GpuTier, part.Rating);
+                break;
+
             case ProgrammableComputerComponent.ExpansionMachinePart:
                 capabilities.ExpansionModules++;
                 break;
@@ -1577,6 +1642,7 @@ function net.close(handle) return h.net_close(handle) end
         public int RamSlotsInstalled;
         public int DiskSlotsInstalled;
         public int NetworkTier;
+        public int GpuTier;
         public int ExpansionModules;
         public int InstructionBudget;
         public int TimeSliceMs;
@@ -1595,7 +1661,7 @@ function net.close(handle) return h.net_close(handle) end
         public Dictionary<int, ClientWebSocket> WebSockets { get; } = new();
         public Queue<DateTimeOffset> RequestWindow { get; } = new();
         public int NextSocketHandle { get; private set; } = 1;
-        public TerminalBuffer Terminal { get; } = new();
+        public TerminalBuffer Terminal { get; set; } = new();
         public DateTimeOffset StartedAt { get; set; } = DateTimeOffset.UtcNow;
         public int RamLimitBytes { get; set; }
         public int RamUsedBytes { get; set; }
@@ -1628,10 +1694,10 @@ function net.close(handle) return h.net_close(handle) end
     /// <summary>Fixed terminal cell grid with cursor and color tracking.</summary>
     private sealed class TerminalBuffer
     {
-        private const int W = ProgrammableComputerComponent.TerminalWidth;
-        private const int H = ProgrammableComputerComponent.TerminalHeight;
+        private readonly TerminalCell[,] _cells;
 
-        private readonly TerminalCell[,] _cells = new TerminalCell[H, W];
+        public int Width { get; }
+        public int Height { get; }
 
         public bool CursorBlink = true;
         public int CursorX { get; private set; } = 1;
@@ -1639,8 +1705,11 @@ function net.close(handle) return h.net_close(handle) end
         public Color ForegroundColor { get; private set; } = DefaultTerminalForeground;
         public Color BackgroundColor { get; private set; } = DefaultTerminalBackground;
 
-        public TerminalBuffer()
+        public TerminalBuffer(int width = ProgrammableComputerComponent.TerminalWidth, int height = ProgrammableComputerComponent.TerminalHeight)
         {
+            Width = Math.Max(1, width);
+            Height = Math.Max(1, height);
+            _cells = new TerminalCell[Height, Width];
             Clear();
         }
 
@@ -1653,9 +1722,9 @@ function net.close(handle) return h.net_close(handle) end
 
         public void ClearLine(int y)
         {
-            if (y < 1 || y > H) return;
+            if (y < 1 || y > Height) return;
 
-            for (var c = 0; c < W; c++)
+            for (var c = 0; c < Width; c++)
                 _cells[y - 1, c] = BlankCell();
         }
 
@@ -1677,7 +1746,7 @@ function net.close(handle) return h.net_close(handle) end
 
         public void SetCursorPos(int x, int y)
         {
-            CursorX = Math.Clamp(x, 1, W);
+            CursorX = Math.Clamp(x, 1, Width);
 
             if (y < 1)
             {
@@ -1685,7 +1754,7 @@ function net.close(handle) return h.net_close(handle) end
                 return;
             }
 
-            if (y <= H)
+            if (y <= Height)
             {
                 CursorY = y;
                 return;
@@ -1693,8 +1762,8 @@ function net.close(handle) return h.net_close(handle) end
 
             // Moving the cursor below the viewport should behave like a terminal:
             // scroll up by the overflow and keep the cursor on the last visible row.
-            Scroll(y - H);
-            CursorY = H;
+            Scroll(y - Height);
+            CursorY = Height;
         }
 
         public void Write(string text)
@@ -1713,10 +1782,10 @@ function net.close(handle) return h.net_close(handle) end
                     continue;
                 }
 
-                if (CursorX > W)
+                if (CursorX > Width)
                     NewLine();
 
-                if (CursorX >= 1 && CursorX <= W && CursorY >= 1 && CursorY <= H)
+                if (CursorX >= 1 && CursorX <= Width && CursorY >= 1 && CursorY <= Height)
                     _cells[CursorY - 1, CursorX - 1] = new TerminalCell(ch, ForegroundColor, BackgroundColor);
 
                 CursorX++;
@@ -1727,10 +1796,10 @@ function net.close(handle) return h.net_close(handle) end
         {
             CursorX = 1;
             CursorY++;
-            if (CursorY > H)
+            if (CursorY > Height)
             {
                 ScrollInternal(1);
-                CursorY = H;
+                CursorY = Height;
             }
         }
 
@@ -1752,30 +1821,30 @@ function net.close(handle) return h.net_close(handle) end
         {
             if (dir > 0)
             {
-                for (var row = 0; row < H - 1; row++)
-                    for (var col = 0; col < W; col++)
+                for (var row = 0; row < Height - 1; row++)
+                    for (var col = 0; col < Width; col++)
                         _cells[row, col] = _cells[row + 1, col];
-                for (var col = 0; col < W; col++)
-                    _cells[H - 1, col] = BlankCell();
+                for (var col = 0; col < Width; col++)
+                    _cells[Height - 1, col] = BlankCell();
             }
             else
             {
-                for (var row = H - 1; row > 0; row--)
-                    for (var col = 0; col < W; col++)
+                for (var row = Height - 1; row > 0; row--)
+                    for (var col = 0; col < Width; col++)
                         _cells[row, col] = _cells[row - 1, col];
-                for (var col = 0; col < W; col++)
+                for (var col = 0; col < Width; col++)
                     _cells[0, col] = BlankCell();
             }
         }
 
         public ProgrammableComputerTerminalCell[] GetCells()
         {
-            var cells = new ProgrammableComputerTerminalCell[W * H];
+            var cells = new ProgrammableComputerTerminalCell[Width * Height];
             var index = 0;
 
-            for (var row = 0; row < H; row++)
+            for (var row = 0; row < Height; row++)
             {
-                for (var col = 0; col < W; col++)
+                for (var col = 0; col < Width; col++)
                 {
                     var cell = _cells[row, col];
                     cells[index++] = new ProgrammableComputerTerminalCell(cell.Glyph, cell.Foreground, cell.Background);
@@ -1787,9 +1856,9 @@ function net.close(handle) return h.net_close(handle) end
 
         private void FillScreen()
         {
-            for (var row = 0; row < H; row++)
+            for (var row = 0; row < Height; row++)
             {
-                for (var col = 0; col < W; col++)
+                for (var col = 0; col < Width; col++)
                 {
                     _cells[row, col] = BlankCell();
                 }

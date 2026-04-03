@@ -28,7 +28,7 @@ public sealed class ProgrammableComputerTerminalBox : Control
     private static readonly Color DefaultBackground = Color.FromHex("#070a0c");
 
     private readonly Font _font;
-    private readonly ProgrammableComputerTerminalCell[] _cells;
+    private ProgrammableComputerTerminalCell[] _cells;
 
     private readonly float _cellWidth;
     private readonly float _cellHeight;
@@ -45,8 +45,8 @@ public sealed class ProgrammableComputerTerminalBox : Control
     public event Action? OnTerminalClicked;
     public event Action<string>? OnTerminalTextEntered;
 
-    public int Columns { get; } = ProgrammableComputerComponent.TerminalWidth;
-    public int Rows { get; } = ProgrammableComputerComponent.TerminalHeight;
+    public int Columns { get; private set; } = ProgrammableComputerComponent.TerminalWidth;
+    public int Rows { get; private set; } = ProgrammableComputerComponent.TerminalHeight;
 
     public ProgrammableComputerTerminalBox()
     {
@@ -61,11 +61,7 @@ public sealed class ProgrammableComputerTerminalBox : Control
         _drawCellWidth = _cellWidth;
         _drawCellHeight = _cellHeight;
 
-        // Round up and keep a small extra gutter so first/last glyphs are never clipped by sub-pixel metrics.
-        var width = MathF.Ceiling(Padding * 2f + Columns * _cellWidth + 2f);
-        var height = MathF.Ceiling(Padding * 2f + Rows * _cellHeight + 2f);
-        MinSize = new Vector2(width, height);
-        SetSize = new Vector2(width, height);
+        RecalculateTerminalBounds();
 
         CanKeyboardFocus = true;
         KeyboardFocusOnClick = true;
@@ -74,8 +70,10 @@ public sealed class ProgrammableComputerTerminalBox : Control
         RectDrawClipMargin = 0;
     }
 
-    public void UpdateTerminal(ProgrammableComputerTerminalCell[] cells, int cursorX, int cursorY, bool cursorBlink)
+    public void UpdateTerminal(ProgrammableComputerTerminalCell[] cells, int columns, int rows, int cursorX, int cursorY, bool cursorBlink)
     {
+        EnsureGridSize(columns, rows);
+
         for (var index = 0; index < _cells.Length; index++)
         {
             if (index < cells.Length)
@@ -100,6 +98,29 @@ public sealed class ProgrammableComputerTerminalBox : Control
 
         _cursorVisible = true;
         _cursorBlinkAccumulator = 0f;
+    }
+
+    private void EnsureGridSize(int columns, int rows)
+    {
+        var targetColumns = Math.Max(1, columns);
+        var targetRows = Math.Max(1, rows);
+        if (targetColumns == Columns && targetRows == Rows)
+            return;
+
+        Columns = targetColumns;
+        Rows = targetRows;
+        _cells = new ProgrammableComputerTerminalCell[Rows * Columns];
+        FillBlankCells();
+        RecalculateTerminalBounds();
+    }
+
+    private void RecalculateTerminalBounds()
+    {
+        // Round up and keep a small extra gutter so first/last glyphs are never clipped by sub-pixel metrics.
+        var width = MathF.Ceiling(Padding * 2f + Columns * _cellWidth + 2f);
+        var height = MathF.Ceiling(Padding * 2f + Rows * _cellHeight + 2f);
+        MinSize = new Vector2(width, height);
+        SetSize = new Vector2(width, height);
     }
 
     protected override void FrameUpdate(FrameEventArgs args)

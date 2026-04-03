@@ -73,6 +73,19 @@ public sealed class ProgrammableComputerRunCommandMessage : BoundUserInterfaceMe
 }
 
 [Serializable, NetSerializable]
+public sealed class ProgrammableComputerTouchMessage : BoundUserInterfaceMessage
+{
+    public readonly int X;
+    public readonly int Y;
+
+    public ProgrammableComputerTouchMessage(int x, int y)
+    {
+        X = x;
+        Y = y;
+    }
+}
+
+[Serializable, NetSerializable]
 public sealed class ProgrammableComputerTextInputMessage : BoundUserInterfaceMessage
 {
     public readonly string Text;

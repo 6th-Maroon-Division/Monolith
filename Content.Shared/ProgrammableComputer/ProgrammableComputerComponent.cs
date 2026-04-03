@@ -12,6 +12,7 @@ public sealed partial class ProgrammableComputerComponent : Component
     public const string RamMachinePart = "ProgrammableComputerRam";
     public const string DiskMachinePart = "ProgrammableComputerDisk";
     public const string NetworkMachinePart = "ProgrammableComputerNetwork";
+    public const string GpuMachinePart = "ProgrammableComputerGpu";
     public const string ExpansionMachinePart = "ProgrammableComputerExpansion";
 
     public const string CpuSlotName = "cpu_slot";
@@ -20,6 +21,7 @@ public sealed partial class ProgrammableComputerComponent : Component
     public const string DiskSlotOneName = "disk_slot_1";
     public const string DiskSlotTwoName = "disk_slot_2";
     public const string NetworkSlotName = "network_slot";
+    public const string GpuSlotName = "gpu_slot";
     public const string ExpansionSlotName = "expansion_slot";
 
     [DataField]

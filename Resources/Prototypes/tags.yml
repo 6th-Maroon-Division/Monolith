@@ -1027,6 +1027,9 @@
   id: ProgrammableComputerNetworkPart
 
 - type: Tag
+  id: ProgrammableComputerGpuPart
+
+- type: Tag
   id: ProgrammableComputerRamPart
 
 - type: Tag

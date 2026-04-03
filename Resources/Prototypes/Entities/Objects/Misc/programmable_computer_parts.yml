@@ -169,6 +169,45 @@
     rating: 3
 
 - type: entity
+  id: ProgrammableComputerGpuTier1
+  parent: BaseProgrammableComputerPart
+  name: graphics module T1
+  description: A basic graphics module with color and cursor control.
+  components:
+  - type: Sprite
+    state: micro_mani
+  - type: MachinePart
+    part: ProgrammableComputerGpu
+    rating: 1
+  - type: Tag
+    tags:
+    - ProgrammableComputerGpuPart
+
+- type: entity
+  id: ProgrammableComputerGpuTier2
+  parent: ProgrammableComputerGpuTier1
+  name: graphics module T2
+  description: An upgraded graphics module that enables touch input events.
+  components:
+  - type: Sprite
+    state: nano_mani
+  - type: MachinePart
+    part: ProgrammableComputerGpu
+    rating: 2
+
+- type: entity
+  id: ProgrammableComputerGpuTier3
+  parent: ProgrammableComputerGpuTier1
+  name: graphics module T3
+  description: A high-end graphics module ready for advanced rendering features.
+  components:
+  - type: Sprite
+    state: pico_mani
+  - type: MachinePart
+    part: ProgrammableComputerGpu
+    rating: 3
+
+- type: entity
   id: ProgrammableComputerTimerModule
   parent: BaseProgrammableComputerPart
   name: timer expansion module

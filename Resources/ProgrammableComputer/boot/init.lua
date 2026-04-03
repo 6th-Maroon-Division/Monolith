@@ -1,111 +1,24 @@
 -- Lua Computer default boot script
--- Key code constants (Robust.Client.Input.Keyboard.Key cast to int)
-local K = {
-  A=10,B=11,C=12,D=13,E=14,F=15,G=16,H=17,I=18,J=19,K=20,L=21,M=22,
-  N=23,O=24,P=25,Q=26,R=27,S=28,T=29,U=30,V=31,W=32,X=33,Y=34,Z=35,
-  D0=36,D1=37,D2=38,D3=39,D4=40,D5=41,D6=42,D7=43,D8=44,D9=45,
-  ESCAPE=56,CONTROL=57,SHIFT=58,ALT=59,LSYSTEM=60,RSYSTEM=61,
-  LBRACKET=63,RBRACKET=64,SEMICOLON=65,COMMA=66,PERIOD=67,
-  APOSTROPHE=68,SLASH=69,BACKSLASH=70,TILDE=71,EQUAL=72,
-  SPACE=73,RETURN=74,NUMPADENTER=75,BACKSPACE=76,TAB=77,
-  PAGEUP=78,PAGEDOWN=79,END=80,HOME=81,INSERT=82,DELETE=83,
-  MINUS=84,LEFT=90,RIGHT=91,UP=92,DOWN=93,
-  F1=94,F2=95,F3=96,F4=97,F5=98,F6=99,F7=100,F8=101,F9=102,
-  F10=103,F11=104,F12=105,
-}
-
--- layout: 0=us, 1=qwertz, 2=azerty  (packed into key event by client)
-local function map_letter(code, shift, layout)
-    local letter = nil
-
-    if layout == 1 then -- qwertz
-        if code == K.Y then
-            letter = 'z'
-        elseif code == K.Z then
-            letter = 'y'
-        end
-    elseif layout == 2 then -- azerty
-        if code == K.Q then
-            letter = 'a'
-        elseif code == K.A then
-            letter = 'q'
-        elseif code == K.W then
-            letter = 'z'
-        elseif code == K.Z then
-            letter = 'w'
-        elseif code == K.SEMICOLON then
-            letter = 'm'
-        end
+-- API modules are loaded first so boot logic can stay small.
+local function load_api(path)
+    local source = fs.read(path)
+    if source == nil then
+        term.writeLine('API file not found: ' .. path)
+        return false
     end
 
-    if letter == nil and code >= K.A and code <= K.Z then
-        letter = string.char(string.byte('a') + (code - K.A))
+    local exec = computer.exec(source, false)
+    if not exec.ok then
+        term.writeLine('API load error [' .. path .. ']: ' .. tostring(exec.error))
+        return false
     end
 
-    if letter == nil then
-        return nil
-    end
-
-    return shift and string.upper(letter) or letter
+    return true
 end
 
-local function map_symbol(code, shift, layout)
-    if layout == 1 then -- qwertz
-        local normal = {
-            [K.D0] = '0', [K.D1] = '1', [K.D2] = '2', [K.D3] = '3', [K.D4] = '4',
-            [K.D5] = '5', [K.D6] = '6', [K.D7] = '7', [K.D8] = '8', [K.D9] = '9',
-            [K.TILDE] = '^', [K.RBRACKET] = '+', [K.BACKSLASH] = '#',
-            [K.COMMA] = ',', [K.PERIOD] = '.', [K.SLASH] = '-', [K.SPACE] = ' '
-        }
-        local shifted = {
-            [K.D0] = '=', [K.D1] = '!', [K.D2] = '"', [K.D4] = '$', [K.D5] = '%',
-            [K.D6] = '&', [K.D7] = '/', [K.D8] = '(', [K.D9] = ')',
-            [K.MINUS] = '?', [K.EQUAL] = '`', [K.LBRACKET] = '*', [K.RBRACKET] = "'",
-            [K.COMMA] = ';', [K.PERIOD] = ':', [K.SLASH] = '_'
-        }
-        return shift and shifted[code] or normal[code]
-    elseif layout == 2 then -- azerty
-        local normal = {
-            [K.D1] = '&', [K.D3] = '"', [K.D4] = "'", [K.D5] = '(', [K.D6] = '-',
-            [K.D8] = '_', [K.MINUS] = ')', [K.EQUAL] = '=', [K.LBRACKET] = '$',
-            [K.RBRACKET] = '*', [K.COMMA] = ';', [K.PERIOD] = ':', [K.SLASH] = '!',
-            [K.SPACE] = ' '
-        }
-        local shifted = {
-            [K.D0] = '0', [K.D1] = '1', [K.D2] = '2', [K.D3] = '3', [K.D4] = '4',
-            [K.D5] = '5', [K.D6] = '6', [K.D7] = '7', [K.D8] = '8', [K.D9] = '9',
-            [K.EQUAL] = '+', [K.LBRACKET] = '^', [K.APOSTROPHE] = '%',
-            [K.COMMA] = '?', [K.PERIOD] = '.', [K.SLASH] = '/'
-        }
-        return shift and shifted[code] or normal[code]
-    else -- us (layout == 0)
-        local normal = {
-            [K.D0] = '0', [K.D1] = '1', [K.D2] = '2', [K.D3] = '3', [K.D4] = '4',
-            [K.D5] = '5', [K.D6] = '6', [K.D7] = '7', [K.D8] = '8', [K.D9] = '9',
-            [K.TILDE] = '`', [K.MINUS] = '-', [K.EQUAL] = '=', [K.LBRACKET] = '[',
-            [K.RBRACKET] = ']', [K.BACKSLASH] = '\\', [K.SEMICOLON] = ';',
-            [K.APOSTROPHE] = "'", [K.COMMA] = ',', [K.PERIOD] = '.', [K.SLASH] = '/',
-            [K.SPACE] = ' '
-        }
-        local shifted = {
-            [K.D0] = ')', [K.D1] = '!', [K.D2] = '@', [K.D3] = '#', [K.D4] = '$',
-            [K.D5] = '%', [K.D6] = '^', [K.D7] = '&', [K.D8] = '*', [K.D9] = '(',
-            [K.TILDE] = '~', [K.MINUS] = '_', [K.EQUAL] = '+', [K.LBRACKET] = '{',
-            [K.RBRACKET] = '}', [K.BACKSLASH] = '|', [K.SEMICOLON] = ':',
-            [K.APOSTROPHE] = '"', [K.COMMA] = '<', [K.PERIOD] = '>', [K.SLASH] = '?'
-        }
-        return shift and shifted[code] or normal[code]
-    end
-end
-
-local function keycode_to_text(code, shift, layout)
-    local letter = map_letter(code, shift, layout)
-    if letter ~= nil then
-        return letter
-    end
-
-    return map_symbol(code, shift, layout)
-end
+load_api('/api/keyboard.lua')
+load_api('/api/path.lua')
+load_api('/api/touch.lua')
 
 local W, H = term.getSize()
 local line = ''
@@ -125,122 +38,6 @@ local function eval_source(source)
     elseif exec.hasResult then
         term.writeLine('=> ' .. tostring(exec.result))
     end
-end
-
-local function canonical_path(path)
-    if path == nil or path == '' then
-        return '/'
-    end
-
-    local absolute = path
-    if absolute:sub(1, 1) ~= '/' then
-        absolute = '/' .. absolute
-    end
-
-    local parts = {}
-    for part in absolute:gmatch('[^/]+') do
-        if part == '.' then
-            -- no-op
-        elseif part == '..' then
-            if #parts > 0 then
-                table.remove(parts)
-            end
-        else
-            table.insert(parts, part)
-        end
-    end
-
-    return '/' .. table.concat(parts, '/')
-end
-
-local function join_path(base, rel)
-    if rel:sub(1, 1) == '/' then
-        return canonical_path(rel)
-    end
-
-    if base == '/' then
-        return canonical_path('/' .. rel)
-    end
-
-    return canonical_path(base .. '/' .. rel)
-end
-
-local function contains(tbl, value)
-    for i = 1, #tbl do
-        if tbl[i] == value then
-            return true
-        end
-    end
-
-    return false
-end
-
-local function has_lua_extension(path)
-    return path:sub(-4) == '.lua'
-end
-
-local function resolve_program_path(path)
-    if path == nil or path == '' then
-        return nil
-    end
-
-    local candidates = {}
-    local function add_candidate(candidate)
-        if candidate == nil or candidate == '' then
-            return
-        end
-
-        local canonical = canonical_path(candidate)
-        if not contains(candidates, canonical) then
-            table.insert(candidates, canonical)
-        end
-    end
-
-    if path:sub(1, 1) == '/' then
-        add_candidate(path)
-    elseif path:sub(1, 2) == './' or path:sub(1, 3) == '../' then
-        add_candidate(join_path(cwd, path))
-    else
-        add_candidate(join_path(cwd, path))
-        add_candidate('/' .. path)
-
-        if not has_lua_extension(path) then
-            add_candidate(join_path(cwd, path .. '.lua'))
-            add_candidate('/' .. path .. '.lua')
-        end
-
-        if not path:find('/') then
-            add_candidate('/bin/' .. path)
-            if not has_lua_extension(path) then
-                add_candidate('/bin/' .. path .. '.lua')
-            end
-        end
-    end
-
-    for i = 1, #candidates do
-        if fs.exists(candidates[i]) then
-            return candidates[i]
-        end
-    end
-
-    return nil
-end
-
-local function resolve_directory_path(path)
-    if path == nil or path == '' then
-        return cwd
-    end
-
-    if path:sub(1, 1) == '/' then
-        return canonical_path(path)
-    end
-
-    return join_path(cwd, path)
-end
-
-local function is_directory(path)
-    local entries = fs.list(path)
-    return not (#entries == 1 and entries[1] == 'Directory not found.')
 end
 
 local function run_file(path)
@@ -297,7 +94,7 @@ local function write_prompt()
 end
 
 local function prompt_text()
-    return mode == 'repl' and 'lua> ' or '> '
+    return mode == 'repl' and 'lua> ' or (cwd .. ' $ ')
 end
 
 local function active_history()
@@ -394,164 +191,332 @@ local function draw_repl()
     write_prompt()
 end
 
-load_compat()
-draw_shell()
+local function split_shell_args(command)
+    local args = {}
+    local current = ''
+    local quote = nil
+    local escaped = false
 
-while true do
-    local ev, code, held, ctrl, alt, shift, meta, layout = event.pull()
-    if ev == 'key' then
-            layout = layout or 0
+    for i = 1, #command do
+        local ch = command:sub(i, i)
 
-            if (code == K.RETURN or code == K.NUMPADENTER) and not held then
-                local suppress_prompt = false
-                local input = line
-                local x, y = term.getCursorPos()
-                term.setCursorPos(1, y + 1)
+        if escaped then
+            current = current .. ch
+            escaped = false
+        elseif ch == '\\' and quote ~= "'" then
+            escaped = true
+        elseif quote ~= nil then
+            if ch == quote then
+                quote = nil
+            else
+                current = current .. ch
+            end
+        elseif ch == '"' or ch == "'" then
+            quote = ch
+        elseif ch == ' ' or ch == '\t' then
+            if #current > 0 then
+                table.insert(args, current)
+                current = ''
+            end
+        else
+            current = current .. ch
+        end
+    end
 
-                if mode == 'repl' then
-                    if input == 'exit' then
-                        add_history_entry(input)
-                        draw_shell()
-                        suppress_prompt = true
-                    elseif input ~= '' then
-                        add_history_entry(input)
-                        eval_source(input)
-                        local x2, y2 = term.getCursorPos()
-                        if x2 ~= 1 then
-                            term.setCursorPos(1, y2 + 1)
-                        end
-                    end
-                else
-                    if input ~= '' then
-                        add_history_entry(input)
-                        if input == 'help' then
-                            term.writeLine('help          - show this help')
-                            term.writeLine('cls           - clear the screen')
-                            term.writeLine('cd <path>     - change directory')
-                            term.writeLine('pwd           - print current directory')
-                            term.writeLine('ls [path]     - list directory')
-                            term.writeLine('cat <path>    - print file')
-                            term.writeLine('run <path>    - execute Lua file')
-                            term.writeLine('termdebug     - run terminal debug demo')
-                            term.writeLine('lua           - open Lua REPL terminal')
-                            term.writeLine('lua <expr>    - evaluate Lua expression')
-                        elseif input == 'cls' or input == 'clear' then
-                            line = ''
-                            cursor = 1
-                            reset_history_navigation()
-                            term.clear()
-                            term.setCursorPos(1, 1)
-                            write_prompt()
-                            suppress_prompt = true
-                        elseif input == 'pwd' then
-                            term.writeLine(cwd)
-                        elseif input:sub(1, 3) == 'cd ' then
-                            local target = resolve_directory_path(input:sub(4))
-                            if is_directory(target) then
-                                cwd = target
-                            else
-                                term.writeLine('Directory not found: ' .. target)
-                            end
-                        elseif input == 'termdebug' then
-                            run_file(resolve_program_path('termdebug.lua'))
-                        elseif input:sub(1, 4) == 'run ' then
-                            local path = input:sub(5)
-                            local resolved = resolve_program_path(path)
-                            if resolved == nil then
-                                term.writeLine('Program not found: ' .. path)
-                            else
-                                run_file(resolved)
-                            end
-                        elseif input == 'lua' then
-                            draw_repl()
-                            suppress_prompt = true
-                        elseif input == 'ls' then
-                            local entries = fs.list(cwd)
-                            for i = 1, #entries do
-                                term.writeLine(entries[i])
-                            end
-                        elseif input:sub(1, 3) == 'ls ' then
-                            local path = resolve_directory_path(input:sub(4))
-                            local entries = fs.list(path)
-                            for i = 1, #entries do
-                                term.writeLine(entries[i])
-                            end
-                        elseif input:sub(1, 4) == 'cat ' then
-                            local raw = input:sub(5)
-                            local path
-                            if raw:sub(1, 1) == '/' then
-                                path = canonical_path(raw)
-                            else
-                                path = join_path(cwd, raw)
-                            end
-                            local content = fs.read(path)
-                            if content == nil then
-                                term.writeLine('File not found: ' .. path)
-                            else
-                                term.writeLine(content)
-                            end
-                        else
-                            local source = input
-                            if input:sub(1, 4) == 'lua ' then
-                                source = input:sub(5)
-                            end
-                            eval_source(source)
-                        end
+    if escaped then
+        current = current .. '\\'
+    end
 
-                        local x2, y2 = term.getCursorPos()
-                        if not suppress_prompt and x2 ~= 1 then
-                            term.setCursorPos(1, y2 + 1)
-                        end
-                    end
-                end
+    if #current > 0 then
+        table.insert(args, current)
+    end
 
-                if not suppress_prompt then
-                    line = ''
-                    cursor = 1
-                    reset_history_navigation()
-                    write_prompt()
-                end
-            elseif code == K.BACKSPACE then
-                if cursor > 1 and #line > 0 then
-                    line = line:sub(1, cursor - 2) .. line:sub(cursor)
-                    cursor = cursor - 1
-                    reset_history_navigation()
-                    render_input_line()
-                end
-            elseif code == K.LEFT then
-                if cursor > 1 then
-                    cursor = cursor - 1
-                    render_input_line()
-                end
-            elseif code == K.RIGHT then
-                if cursor <= #line then
-                    cursor = cursor + 1
-                    render_input_line()
-                end
-            elseif code == K.HOME then
-                cursor = 1
-                render_input_line()
-            elseif code == K.END then
-                cursor = #line + 1
-                render_input_line()
-            elseif code == K.DELETE then
-                if cursor <= #line then
-                    line = line:sub(1, cursor - 1) .. line:sub(cursor + 1)
-                    reset_history_navigation()
-                    render_input_line()
-                end
-            elseif code == K.UP then
-                navigate_history(-1)
-            elseif code == K.DOWN then
-                navigate_history(1)
-            elseif not ctrl and not alt and not meta then
-                local typed = keycode_to_text(code, shift, layout)
-                if typed ~= nil and typed ~= '' then
-                    line = line:sub(1, cursor - 1) .. typed .. line:sub(cursor)
-                    cursor = cursor + #typed
-                    reset_history_navigation()
-                    render_input_line()
+    return args
+end
+
+local function expand_shell_vars(text)
+    local expanded = text
+    expanded = expanded:gsub('%$PWD', cwd)
+    expanded = expanded:gsub('%$HOME', '/')
+    return expanded
+end
+
+local function resolve_file_argument(raw)
+    if raw:sub(1, 1) == '/' then
+        return canonical_path(raw)
+    end
+
+    return join_path(cwd, raw)
+end
+
+local function expand_history_input(input)
+    if input == '!!' then
+        if #shell_history == 0 then
+            term.writeLine('history: no previous command')
+            return nil
+        end
+
+        local previous = shell_history[#shell_history]
+        term.writeLine(previous)
+        return previous
+    end
+
+    return input
+end
+
+local function execute_shell_command(input)
+    local args = split_shell_args(input)
+    if #args == 0 then
+        return
+    end
+
+    local cmd = args[1]
+    if cmd == 'help' then
+        term.writeLine('help              - show this help')
+        term.writeLine('cls|clear         - clear the screen')
+        term.writeLine('cd [path]         - change directory (default /)')
+        term.writeLine('pwd               - print current directory')
+        term.writeLine('ls [path]         - list directory')
+        term.writeLine('cat <path>        - print file')
+        term.writeLine('run <path>        - execute Lua file')
+        term.writeLine('. <path>          - source Lua file into current shell')
+        term.writeLine('source <path>     - same as .')
+        term.writeLine('echo <text...>    - print text ($PWD/$HOME supported)')
+        term.writeLine('history           - show command history')
+        term.writeLine('!!                - run previous command')
+        term.writeLine('termdebug         - run terminal debug demo')
+        term.writeLine('lua               - open Lua REPL terminal')
+        term.writeLine('lua <expr>        - evaluate Lua expression')
+    elseif cmd == 'cls' or cmd == 'clear' then
+        line = ''
+        cursor = 1
+        reset_history_navigation()
+        term.clear()
+        term.setCursorPos(1, 1)
+        write_prompt()
+    elseif cmd == 'pwd' then
+        term.writeLine(cwd)
+    elseif cmd == 'cd' then
+        local targetInput = args[2] or '/'
+        local target = resolve_directory_path(targetInput, cwd)
+        if is_directory(target) then
+            cwd = target
+        else
+            term.writeLine('Directory not found: ' .. target)
+        end
+    elseif cmd == 'termdebug' then
+        run_file(resolve_program_path('termdebug.lua', cwd))
+    elseif cmd == 'run' then
+        local path = args[2]
+        if path == nil then
+            term.writeLine('Usage: run <path>')
+            return
+        end
+
+        local resolved = resolve_program_path(path, cwd)
+        if resolved == nil then
+            term.writeLine('Program not found: ' .. path)
+        else
+            run_file(resolved)
+        end
+    elseif cmd == '.' or cmd == 'source' then
+        local path = args[2]
+        if path == nil then
+            term.writeLine('Usage: ' .. cmd .. ' <path>')
+            return
+        end
+
+        local resolved = resolve_program_path(path, cwd)
+        if resolved == nil then
+            term.writeLine('Program not found: ' .. path)
+        else
+            local source = fs.read(resolved)
+            if source == nil then
+                term.writeLine('File not found: ' .. resolved)
+            else
+                local exec = computer.exec(source, false)
+                if not exec.ok then
+                    term.writeLine(tostring(exec.error))
+                elseif exec.hasResult then
+                    term.writeLine('=> ' .. tostring(exec.result))
                 end
             end
         end
+    elseif cmd == 'ls' then
+        local path = args[2] and resolve_directory_path(args[2], cwd) or cwd
+        local entries = fs.list(path)
+        for i = 1, #entries do
+            term.writeLine(entries[i])
+        end
+    elseif cmd == 'cat' then
+        local raw = args[2]
+        if raw == nil then
+            term.writeLine('Usage: cat <path>')
+            return
+        end
+
+        local path = resolve_file_argument(raw)
+        local content = fs.read(path)
+        if content == nil then
+            term.writeLine('File not found: ' .. path)
+        else
+            term.writeLine(content)
+        end
+    elseif cmd == 'echo' then
+        local chunks = {}
+        for i = 2, #args do
+            chunks[#chunks + 1] = expand_shell_vars(args[i])
+        end
+        term.writeLine(table.concat(chunks, ' '))
+    elseif cmd == 'history' then
+        for i = 1, #shell_history do
+            term.writeLine(tostring(i) .. '  ' .. shell_history[i])
+        end
+    elseif cmd == 'lua' and #args == 1 then
+        draw_repl()
+    elseif cmd == 'lua' and #args > 1 then
+        local source = input:sub(5)
+        eval_source(source)
+    else
+        eval_source(input)
+    end
+end
+
+load_compat()
+draw_shell()
+
+local function handle_key_input(code, is_repeat, ctrl, alt, shift, meta, layout)
+    if (code == K.RETURN or code == K.NUMPADENTER) and not is_repeat then
+        local suppress_prompt = false
+        local input = line
+        local x, y = term.getCursorPos()
+        term.setCursorPos(1, y + 1)
+
+        if mode == 'repl' then
+            if input == 'exit' then
+                add_history_entry(input)
+                draw_shell()
+                suppress_prompt = true
+            elseif input ~= '' then
+                add_history_entry(input)
+                eval_source(input)
+                local x2, y2 = term.getCursorPos()
+                if x2 ~= 1 then
+                    term.setCursorPos(1, y2 + 1)
+                end
+            end
+        else
+            if input ~= '' then
+                local expanded = expand_history_input(input)
+                if expanded == nil then
+                    suppress_prompt = false
+                else
+                    add_history_entry(expanded)
+                    execute_shell_command(expanded)
+
+                    local x2, y2 = term.getCursorPos()
+                    if not suppress_prompt and x2 ~= 1 then
+                        term.setCursorPos(1, y2 + 1)
+                    end
+                end
+            end
+        end
+
+        if not suppress_prompt then
+            line = ''
+            cursor = 1
+            reset_history_navigation()
+            write_prompt()
+        end
+    elseif code == K.BACKSPACE then
+        if cursor > 1 and #line > 0 then
+            line = line:sub(1, cursor - 2) .. line:sub(cursor)
+            cursor = cursor - 1
+            reset_history_navigation()
+            render_input_line()
+        end
+    elseif code == K.LEFT then
+        if cursor > 1 then
+            cursor = cursor - 1
+            render_input_line()
+        end
+    elseif code == K.RIGHT then
+        if cursor <= #line then
+            cursor = cursor + 1
+            render_input_line()
+        end
+    elseif code == K.HOME then
+        cursor = 1
+        render_input_line()
+    elseif code == K.END then
+        cursor = #line + 1
+        render_input_line()
+    elseif code == K.DELETE then
+        if cursor <= #line then
+            line = line:sub(1, cursor - 1) .. line:sub(cursor + 1)
+            reset_history_navigation()
+            render_input_line()
+        end
+    elseif code == K.UP then
+        navigate_history(-1)
+    elseif code == K.DOWN then
+        navigate_history(1)
+    elseif not ctrl and not alt and not meta then
+        local typed = keycode_to_text(code, shift, layout)
+        if typed ~= nil and typed ~= '' then
+            keyboard_emit('text', typed, code, is_repeat, ctrl, alt, shift, meta, layout)
+            line = line:sub(1, cursor - 1) .. typed .. line:sub(cursor)
+            cursor = cursor + #typed
+            reset_history_navigation()
+            render_input_line()
+        end
+    end
+end
+
+keyboard_on('key_pressed', function(code, ctrl, alt, shift, meta, layout)
+    handle_key_input(code, false, ctrl, alt, shift, meta, layout)
+end)
+
+keyboard_on('key_repeat', function(code, ctrl, alt, shift, meta, layout)
+    handle_key_input(code, true, ctrl, alt, shift, meta, layout)
+end)
+
+keyboard_on('key_released', function(code, ctrl, alt, shift, meta, layout)
+    -- Reserved hook for default boot behavior on release.
+end)
+
+while true do
+    local ev, a, b, c, d, e, f, g = event.pull()
+    if ev == 'key' then
+        local code = a
+        local held = b
+        local ctrl = c
+        local alt = d
+        local shift = e
+        local meta = f
+        local layout = g
+        layout = layout or 0
+        keyboard_emit('key', code, held, ctrl, alt, shift, meta, layout)
+        if held then
+            keyboard_emit('key_repeat', code, ctrl, alt, shift, meta, layout)
+        else
+            keyboard_emit('key_pressed', code, ctrl, alt, shift, meta, layout)
+        end
+    elseif ev == 'key_up' then
+        local code = a
+        local ctrl = c
+        local alt = d
+        local shift = e
+        local meta = f
+        local layout = g
+        layout = layout or 0
+        keyboard_emit('key_up', code, ctrl, alt, shift, meta, layout)
+        keyboard_emit('key_released', code, ctrl, alt, shift, meta, layout)
+    elseif ev == 'touch' then
+        local x = a
+        local y = b
+        local button = c or 1
+        touch_emit('touch', x, y, button)
+        touch_emit('touch_pressed', x, y, button)
+    end
 end

@@ -19,6 +19,11 @@
   stockPartPrototype: ProgrammableComputerNetworkTier1
 
 - type: machinePart
+  id: ProgrammableComputerGpu
+  name: programmable-computer-part-name-gpu
+  stockPartPrototype: ProgrammableComputerGpuTier1
+
+- type: machinePart
   id: ProgrammableComputerExpansion
   name: programmable-computer-part-name-expansion
   stockPartPrototype: ProgrammableComputerTimerModule

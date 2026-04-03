@@ -356,6 +356,15 @@
         whitelist:
           tags:
           - ProgrammableComputerNetworkPart
+      gpu_slot:
+        name: programmable-computer-slot-gpu
+        insertSound:
+          path: /Audio/Machines/terminal_insert_disc.ogg
+        ejectSound:
+          path: /Audio/Machines/terminal_insert_disc.ogg
+        whitelist:
+          tags:
+          - ProgrammableComputerGpuPart
       expansion_slot:
         name: programmable-computer-slot-expansion
         insertSound:
