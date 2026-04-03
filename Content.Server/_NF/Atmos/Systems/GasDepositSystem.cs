@@ -337,6 +337,7 @@ public sealed class GasDepositSystem : SharedGasDepositSystem
 
         var mixture = new GasMixture();
         mixture.SetMoles(gasId, moles);
+        mixture.Temperature = 293.15f;
         _atmosphere.Merge(points[0].Comp.GasStorage, mixture);
 
         _audio.PlayPvs(ent.Comp.ApproveSound, ent);
