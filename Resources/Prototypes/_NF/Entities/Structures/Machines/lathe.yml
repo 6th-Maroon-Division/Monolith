@@ -80,10 +80,12 @@
     # Mono
     - GasMiningStatic
     - AutomationStatic
+    - ProgrammableComputerPartsStatic
     # Mono End
     dynamicPacks:
     - NFEngineeringTechfabDeprecated
     - RCD # Mono
+    - ProgrammableComputerParts # Mono
   - type: PirateBountyItem # Mono
     id: Techfab
 

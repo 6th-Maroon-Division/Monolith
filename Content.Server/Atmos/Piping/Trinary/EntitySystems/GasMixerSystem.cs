@@ -250,5 +250,40 @@ namespace Content.Server.Atmos.Piping.Trinary.EntitySystems
                 _userInterfaceSystem.CloseUi(uid, GasFilterUiKey.Key);
             }
         }
+
+        public void SetEnabled(EntityUid uid, GasMixerComponent mixer, bool enabled)
+        {
+            mixer.Enabled = enabled;
+            DirtyUI(uid, mixer);
+            UpdateAppearance(uid, mixer);
+            Dirty(uid, mixer);
+        }
+
+        public void SetTargetPressure(EntityUid uid, GasMixerComponent mixer, float pressure)
+        {
+            mixer.TargetPressure = Math.Clamp(pressure, 0f, mixer.MaxTargetPressure);
+            DirtyUI(uid, mixer);
+            Dirty(uid, mixer);
+        }
+
+        public void SetInletRatio(EntityUid uid, GasMixerComponent mixer, float inletOne, float inletTwo)
+        {
+            var sum = inletOne + inletTwo;
+            if (sum <= 0f)
+            {
+                inletOne = 0.5f;
+                inletTwo = 0.5f;
+            }
+            else
+            {
+                inletOne /= sum;
+                inletTwo /= sum;
+            }
+
+            mixer.InletOneConcentration = Math.Clamp(inletOne, 0f, 1f);
+            mixer.InletTwoConcentration = Math.Clamp(inletTwo, 0f, 1f);
+            DirtyUI(uid, mixer);
+            Dirty(uid, mixer);
+        }
     }
 }

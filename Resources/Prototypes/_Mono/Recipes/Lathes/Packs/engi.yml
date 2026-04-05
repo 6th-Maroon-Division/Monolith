@@ -15,7 +15,31 @@
   - InteractorCircuitboard
   - UpgradeKitAutomation
 
+- type: latheRecipePack
+  id: ProgrammableComputerPartsStatic
+  recipes:
+  - ProgrammableComputerCpuTier1
+  - ProgrammableComputerRamTier1
+  - ProgrammableComputerDiskTier1
+  - ProgrammableComputerNetworkTier1
+  - ProgrammableComputerGpuTier1
+  - ProgrammableComputerTimerModule
+
 ## Dynamic
+
+- type: latheRecipePack
+  id: ProgrammableComputerParts
+  recipes:
+  - ProgrammableComputerCpuTier2
+  - ProgrammableComputerRamTier2
+  - ProgrammableComputerDiskTier2
+  - ProgrammableComputerNetworkTier2
+  - ProgrammableComputerGpuTier2
+  - ProgrammableComputerCpuTier3
+  - ProgrammableComputerRamTier3
+  - ProgrammableComputerDiskTier3
+  - ProgrammableComputerNetworkTier3
+  - ProgrammableComputerGpuTier3
 
 - type: latheRecipePack
   id: RCD

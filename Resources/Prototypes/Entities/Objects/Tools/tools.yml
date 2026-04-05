@@ -296,6 +296,39 @@
     guides:
     - Networking
 
+- type: entity
+  name: programmable computer linker
+  parent: BaseItem
+  id: ProgrammableComputerLinker
+  description: Queues atmos devices, then links all queued devices to a programmable computer.
+  components:
+  - type: EmitSoundOnLand
+    sound:
+      path: /Audio/Items/multitool_drop.ogg
+  - type: Sprite
+    sprite: Objects/Tools/network_configurator.rsi
+    state: icon
+  - type: Item
+    size: Small
+  - type: Clothing
+    sprite: Objects/Tools/network_configurator.rsi
+    quickEquip: false
+    slots:
+    - Belt
+  - type: ProgrammableComputerLinker
+  - type: ActivatableUI
+    key: enum.ProgrammableComputerLinkerUiKey.Key
+    inHandsOnly: true
+  - type: UserInterface
+    interfaces:
+      enum.ProgrammableComputerLinkerUiKey.Key:
+        type: ProgrammableComputerLinkerBoundUserInterface
+  - type: StaticPrice
+    price: 30
+  - type: GuideHelp
+    guides:
+    - Networking
+
 #Power tools
 #Later on these should switch probably switch damage when changing the tool behavior.
 - type: entity

@@ -51,6 +51,9 @@ jobs:
     - name: Run Content.Tests
       run: dotnet test --no-build --configuration DebugOpt Content.Tests/Content.Tests.csproj -- NUnit.ConsoleOut=0
 
+    - name: Run Content.ProgrammableComputer.Tests
+      run: dotnet test --no-build --configuration DebugOpt Content.ProgrammableComputer.Tests/Content.ProgrammableComputer.Tests.csproj -- NUnit.ConsoleOut=0
+
     - name: Run Content.IntegrationTests
       shell: pwsh
       run: |

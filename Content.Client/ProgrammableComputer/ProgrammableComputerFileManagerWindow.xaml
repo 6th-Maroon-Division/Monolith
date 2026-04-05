@@ -1,0 +1,27 @@
+<controls:FancyWindow xmlns="https://spacestation14.io"
+                     xmlns:controls="clr-namespace:Content.Client.UserInterface.Controls"
+                     Title="File Manager"
+                     MinSize="400 300"
+                     SetSize="600 400">
+    <BoxContainer Orientation="Vertical" VerticalExpand="True" HorizontalExpand="True">
+        <BoxContainer Orientation="Horizontal" Margin="8 8 8 0" SeparationOverride="4">
+            <Button Name="UploadButton" Text="Upload File" />
+            <Button Name="NewFileButton" Text="New File" />
+            <Button Name="DeleteButton" Text="Delete" Disabled="True" />
+            <Control HorizontalExpand="True" />
+            <Button Name="RefreshButton" Text="Refresh" />
+        </BoxContainer>
+
+        <ItemList Name="FileList"
+                  VerticalExpand="True"
+                  SelectMode="Single"
+                  Margin="8 8 8 8" />
+
+        <BoxContainer Orientation="Horizontal" Margin="8 0 8 8" SeparationOverride="4">
+            <Button Name="EditButton" Text="Edit" Disabled="True" />
+            <Button Name="DownloadButton" Text="Download" Disabled="True" />
+            <Control HorizontalExpand="True" />
+            <Button Name="CloseButton" Text="Close" />
+        </BoxContainer>
+    </BoxContainer>
+</controls:FancyWindow>

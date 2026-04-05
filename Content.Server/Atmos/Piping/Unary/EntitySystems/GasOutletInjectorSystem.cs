@@ -76,5 +76,18 @@ namespace Content.Server.Atmos.Piping.Unary.EntitySystems
 
             _atmosphereSystem.Merge(environment, removed);
         }
+
+        public void SetEnabled(EntityUid uid, GasOutletInjectorComponent comp, bool enabled)
+        {
+            comp.Enabled = enabled;
+            Dirty(uid, comp);
+            UpdateAppearance(uid, comp);
+        }
+
+        public void SetTransferRate(EntityUid uid, GasOutletInjectorComponent comp, float rate)
+        {
+            comp.TransferRate = rate;
+            Dirty(uid, comp);
+        }
     }
 }

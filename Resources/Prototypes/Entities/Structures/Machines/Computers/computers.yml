@@ -279,18 +279,7 @@
   - type: Computer
     board: ProgrammableComputerCircuitboard
   - type: ProgrammableComputer
-  - type: Sprite
-    layers:
-    - map: ["computerLayerBody"]
-      state: computer
-    - map: ["computerLayerKeyboard"]
-      state: generic_keyboard
-    - map: ["computerLayerScreen"]
-      state: generic
-    - map: ["computerLayerKeys"]
-      state: generic_keys
-    - map: [ "enum.WiresVisualLayers.MaintenancePanel" ]
-      state: generic_panel_open
+  - type: ProgrammableComputerAtmosLinks
   - type: ActivatableUI
     singleUser: true
     key: enum.ProgrammableComputerUiKey.Key

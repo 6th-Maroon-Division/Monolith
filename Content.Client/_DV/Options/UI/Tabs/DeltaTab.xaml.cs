@@ -5,6 +5,8 @@ using Robust.Client.UserInterface;
 using Robust.Client.UserInterface.Controls;
 using Robust.Client.UserInterface.XAML;
 using Robust.Shared.Configuration;
+using System;
+using System.IO;
 
 namespace Content.Client._DV.Options.UI.Tabs;
 
@@ -35,6 +37,8 @@ public sealed partial class DeltaTab : Control
         KeyboardLayoutOption.OnItemSelected += OnKeyboardLayoutSelected;
 
         ApplyButton.OnPressed += OnApplyButtonPressed;
+        SaveDefaultWindowSizeButton.OnPressed += OnSaveDefaultWindowSizePressed;
+        ResetWindowSizesButton.OnPressed += OnResetWindowSizesPressed;
         UpdateApplyButton();
     }
 
@@ -91,5 +95,82 @@ public sealed partial class DeltaTab : Control
             "azerty" => "azerty",
             _ => "us",
         };
+    }
+
+    private void OnSaveDefaultWindowSizePressed(BaseButton.ButtonEventArgs args)
+    {
+        try
+        {
+            var sizeData = LoadWindowSizes();
+            if (sizeData.Count > 0)
+            {
+                // Average all saved window sizes
+                var avgWidth = 0f;
+                var avgHeight = 0f;
+                foreach (var size in sizeData.Values)
+                {
+                    avgWidth += size.Width;
+                    avgHeight += size.Height;
+                }
+                avgWidth /= sizeData.Count;
+                avgHeight /= sizeData.Count;
+                
+                var sizeStr = $"{avgWidth:F0},{avgHeight:F0}";
+                _cfg.SetCVar(CCVars.ProgrammableComputerDefaultWindowSize, sizeStr);
+                _cfg.SaveToFile();
+            }
+        }
+        catch
+        {
+            // Silently fail
+        }
+    }
+
+    private void OnResetWindowSizesPressed(BaseButton.ButtonEventArgs args)
+    {
+        try
+        {
+            var settingsPath = GetWindowSizesPath();
+            if (File.Exists(settingsPath))
+            {
+                File.Delete(settingsPath);
+            }
+            _cfg.SetCVar(CCVars.ProgrammableComputerDefaultWindowSize, "");
+            _cfg.SaveToFile();
+        }
+        catch
+        {
+            // Silently fail
+        }
+    }
+
+    private static Dictionary<string, SizeData> LoadWindowSizes()
+    {
+        var settingsPath = GetWindowSizesPath();
+        if (!File.Exists(settingsPath))
+            return new Dictionary<string, SizeData>();
+
+        try
+        {
+            var json = File.ReadAllText(settingsPath);
+            var dict = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, SizeData>>(json);
+            return dict ?? new Dictionary<string, SizeData>();
+        }
+        catch
+        {
+            return new Dictionary<string, SizeData>();
+        }
+    }
+
+    private static string GetWindowSizesPath()
+    {
+        var baseDir = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        return Path.Combine(baseDir, "SpaceStation14", "programmable_computer_window_sizes.json");
+    }
+
+    private record SizeData
+    {
+        public float Width { get; set; }
+        public float Height { get; set; }
     }
 }

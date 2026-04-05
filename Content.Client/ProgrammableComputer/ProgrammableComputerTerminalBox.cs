@@ -116,11 +116,9 @@ public sealed class ProgrammableComputerTerminalBox : Control
 
     private void RecalculateTerminalBounds()
     {
-        // Round up and keep a small extra gutter so first/last glyphs are never clipped by sub-pixel metrics.
-        var width = MathF.Ceiling(Padding * 2f + Columns * _cellWidth + 2f);
-        var height = MathF.Ceiling(Padding * 2f + Rows * _cellHeight + 2f);
-        MinSize = new Vector2(width, height);
-        SetSize = new Vector2(width, height);
+        // Allow terminal to scale down to fit any size window.
+        // Minimum is just enough for padding.
+        MinSize = new Vector2(Padding * 2f, Padding * 2f);
     }
 
     protected override void FrameUpdate(FrameEventArgs args)
@@ -156,7 +154,7 @@ public sealed class ProgrammableComputerTerminalBox : Control
         var availableHeight = MathF.Max(1f, PixelSizeBox.Height - Padding * 2f - 2f);
         var scaleX = availableWidth / (Columns * _cellWidth);
         var scaleY = availableHeight / (Rows * _cellHeight);
-        var fontScale = MathF.Max(0.1f, MathF.Min(scaleX, scaleY));
+        var fontScale = MathF.Max(0.05f, MathF.Min(scaleX, scaleY));
 
         _drawCellWidth = _cellWidth * fontScale;
         _drawCellHeight = _cellHeight * fontScale;

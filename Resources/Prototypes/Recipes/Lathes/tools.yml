@@ -107,6 +107,11 @@
   result: NetworkConfigurator
 
 - type: latheRecipe
+  parent: Multitool
+  id: ProgrammableComputerLinker
+  result: ProgrammableComputerLinker
+
+- type: latheRecipe
   parent: BaseToolRecipe
   id: PowerDrill
   result: PowerDrill

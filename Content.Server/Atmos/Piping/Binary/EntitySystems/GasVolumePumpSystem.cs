@@ -233,5 +233,17 @@ namespace Content.Server.Atmos.Piping.Binary.EntitySystems
                 _userInterfaceSystem.CloseUi(uid, GasVolumePumpUiKey.Key);
             }
         }
+
+        // ─── Public control API ───────────────────────────────────────────
+        public void SetEnabled(EntityUid uid, GasVolumePumpComponent comp, bool enabled)
+        {
+            comp.Enabled = enabled;
+            UpdateAppearance(uid, comp);
+        }
+
+        public void SetTransferRate(EntityUid uid, GasVolumePumpComponent comp, float rate)
+        {
+            comp.TransferRate = Math.Clamp(rate, 0f, comp.MaxTransferRate);
+        }
     }
 }

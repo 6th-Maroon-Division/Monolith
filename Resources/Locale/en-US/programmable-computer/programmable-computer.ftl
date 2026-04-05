@@ -18,3 +18,28 @@ programmable-computer-part-name-disk = programmable disk
 programmable-computer-part-name-network = network module
 programmable-computer-part-name-gpu = graphics module
 programmable-computer-part-name-expansion = expansion module
+
+# Device Manager window
+programmable-computer-devices-button = Devices
+programmable-computer-files-button = Files
+programmable-computer-devices-title = Linked Devices
+programmable-computer-devices-linked-header = Linked Devices
+programmable-computer-devices-nearby-header = Nearby Devices (use linker tool to add)
+programmable-computer-devices-scan = Scan
+programmable-computer-devices-link = Link
+programmable-computer-devices-unlink = Unlink
+programmable-computer-devices-rename = Rename
+programmable-computer-devices-none = No devices linked.
+programmable-computer-devices-scan-none = No devices found nearby.
+programmable-computer-devices-label-placeholder = label...
+
+programmable-computer-linker-device-buffered = Buffered {$device}.
+programmable-computer-linker-device-removed = Removed {$device} from buffer.
+programmable-computer-linker-no-buffered-devices = No buffered devices. Click atmos devices first.
+programmable-computer-linker-paired-summary = Linked {$added} device(s). Skipped {$skipped}.
+programmable-computer-linker-examine-buffered = Buffered devices: {$count}
+programmable-computer-linker-ui-title = Computer Linker
+programmable-computer-linker-ui-count = Buffered devices: {$count}
+programmable-computer-linker-ui-remove = Remove
+programmable-computer-linker-ui-clear-all = Clear All
+programmable-computer-linker-ui-empty = No buffered devices.

@@ -23,7 +23,7 @@ using Robust.Server.GameObjects;
 
 namespace Content.Server.ProgrammableComputer;
 
-public sealed class ProgrammableComputerSystem : EntitySystem
+public sealed partial class ProgrammableComputerSystem : EntitySystem
 {
     private static readonly TimeSpan BootStageDelay = TimeSpan.FromMilliseconds(350);
     private const int MinRuntimeRamKiB = 64;
@@ -67,6 +67,13 @@ public sealed class ProgrammableComputerSystem : EntitySystem
         SubscribeLocalEvent<ProgrammableComputerComponent, ProgrammableComputerKeyMessage>(OnKeyInput);
         SubscribeLocalEvent<ProgrammableComputerComponent, ProgrammableComputerTouchMessage>(OnTouchInput);
         SubscribeLocalEvent<ProgrammableComputerComponent, ProgrammableComputerPowerActionMessage>(OnPowerAction);
+        SubscribeLocalEvent<ProgrammableComputerComponent, ProgrammableComputerRefreshStateMessage>(OnRefreshState);
+        SubscribeLocalEvent<ProgrammableComputerComponent, ProgrammableComputerRunCommandMessage>(OnRunCommand);
+            SubscribeLocalEvent<ProgrammableComputerComponent, ProgrammableComputerRequestFileListMessage>(OnRequestFileList);
+            SubscribeLocalEvent<ProgrammableComputerComponent, ProgrammableComputerDeleteFileMessage>(OnDeleteFile);
+            SubscribeLocalEvent<ProgrammableComputerComponent, ProgrammableComputerDownloadFileMessage>(OnDownloadFile);
+            SubscribeLocalEvent<ProgrammableComputerComponent, ProgrammableComputerUploadFileMessage>(OnUploadFile);
+        InitializeAtmos();
     }
 
     public override void Update(float frameTime)
@@ -75,13 +82,22 @@ public sealed class ProgrammableComputerSystem : EntitySystem
 
         foreach (var (uid, runtime) in _runtimes)
         {
-            if (!runtime.IsBooting || now < runtime.BootReadyAt)
-                continue;
-
             if (!TryComp<ProgrammableComputerComponent>(uid, out var component))
                 continue;
 
-            AdvanceBootSequence(uid, component, runtime, now);
+            if (runtime.IsBooting)
+            {
+                if (now >= runtime.BootReadyAt)
+                    AdvanceBootSequence(uid, component, runtime, now);
+                continue;
+            }
+
+            if (runtime.IsRunning)
+            {
+                PumpCoroutineInternal(uid, component, runtime, true,
+                    LuaEventArg.FromString("tick"),
+                    LuaEventArg.FromNumber(now.TotalSeconds));
+            }
         }
     }
 
@@ -158,6 +174,53 @@ public sealed class ProgrammableComputerSystem : EntitySystem
                     StartBootSequence(uid, component, runtime);
                 break;
         }
+    }
+
+    private void OnRefreshState(EntityUid uid, ProgrammableComputerComponent component, ProgrammableComputerRefreshStateMessage args)
+    {
+        UpdateUi(uid, component);
+    }
+
+    private void OnRunCommand(EntityUid uid, ProgrammableComputerComponent component, ProgrammableComputerRunCommandMessage args)
+    {
+        var runtime = EnsureRuntime(uid);
+        if (!runtime.IsRunning)
+            return;
+
+        PumpCoroutine(uid, component, runtime,
+            LuaEventArg.FromString("run_command"),
+            LuaEventArg.FromString(args.Command));
+    }
+
+    private void OnRequestFileList(EntityUid uid, ProgrammableComputerComponent component, ProgrammableComputerRequestFileListMessage args)
+    {
+        UpdateUi(uid, component);
+    }
+
+    private void OnDeleteFile(EntityUid uid, ProgrammableComputerComponent component, ProgrammableComputerDeleteFileMessage args)
+    {
+        var runtime = EnsureRuntime(uid);
+        runtime.FileSystem.Remove(args.FileName);
+        UpdateUi(uid, component);
+    }
+
+    private void OnDownloadFile(EntityUid uid, ProgrammableComputerComponent component, ProgrammableComputerDownloadFileMessage args)
+    {
+        var runtime = EnsureRuntime(uid);
+        if (!runtime.FileSystem.TryRead(args.FileName, out var content))
+            return;
+
+        _ui.ServerSendUiMessage(uid, ProgrammableComputerUiKey.Key,
+            new ProgrammableComputerFileContentMessage(args.FileName, Encoding.UTF8.GetBytes(content)),
+            args.Actor);
+    }
+
+    private void OnUploadFile(EntityUid uid, ProgrammableComputerComponent component, ProgrammableComputerUploadFileMessage args)
+    {
+        var runtime = EnsureRuntime(uid);
+        var capabilities = GetCapabilities(uid);
+        runtime.FileSystem.TryWrite(args.FileName, Encoding.UTF8.GetString(args.Content), capabilities, out _);
+        UpdateUi(uid, component);
     }
 
     private void StartBootSequence(EntityUid uid, ProgrammableComputerComponent component, ComputerRuntime runtime)
@@ -416,6 +479,11 @@ public sealed class ProgrammableComputerSystem : EntitySystem
 
     private void PumpCoroutine(EntityUid uid, ProgrammableComputerComponent component, ComputerRuntime runtime, params LuaEventArg[] args)
     {
+        PumpCoroutineInternal(uid, component, runtime, true, args);
+    }
+
+    private void PumpCoroutineInternal(EntityUid uid, ProgrammableComputerComponent component, ComputerRuntime runtime, bool updateUi, params LuaEventArg[] args)
+    {
         if (runtime.MainThread == null)
             return;
 
@@ -436,7 +504,8 @@ public sealed class ProgrammableComputerSystem : EntitySystem
             runtime.Terminal.Write(error);
         }
 
-        UpdateUi(uid, component);
+        if (updateUi || !runtime.IsRunning)
+            UpdateUi(uid, component);
     }
 
     private void ShutdownRuntime(EntityUid uid, ProgrammableComputerComponent component, ComputerRuntime runtime, string message)
@@ -483,6 +552,9 @@ public sealed class ProgrammableComputerSystem : EntitySystem
         if (!_runtimes.TryGetValue(uid, out var runtime))
             return;
 
+        var ramAvailableKiB = runtime.RamLimitBytes / 1024;
+        var diskAvailableKiB = runtime.BootCapabilities.TotalDiskKiB;
+
         var cells = runtime.Terminal.GetCells();
         var state = new ProgrammableComputerBoundUserInterfaceState(
             cells,
@@ -495,9 +567,30 @@ public sealed class ProgrammableComputerSystem : EntitySystem
             runtime.Terminal.CursorY,
             runtime.Terminal.CursorBlink && runtime.IsPoweredOn,
             runtime.IsPoweredOn,
-            runtime.IsBooting);
+            runtime.IsBooting,
+            ramAvailableKiB,
+            diskAvailableKiB,
+            BuildAtmosLinkEntries(uid),
+            BuildAtmosNearbyEntries(uid),
+            BuildFileEntries(runtime));
 
         _ui.SetUiState(uid, ProgrammableComputerUiKey.Key, state);
+    }
+
+    public void RefreshUi(EntityUid uid)
+    {
+        if (!TryComp<ProgrammableComputerComponent>(uid, out var comp))
+            return;
+
+        UpdateUi(uid, comp);
+    }
+
+    private ProgrammableComputerFileEntry[] BuildFileEntries(ComputerRuntime runtime)
+    {
+        var now = DateTime.UtcNow;
+        return runtime.FileSystem.EnumerateFiles()
+            .Select(kvp => new ProgrammableComputerFileEntry(kvp.Key, (uint) Encoding.UTF8.GetByteCount(kvp.Value), now))
+            .ToArray();
     }
 
     private ComputerRuntime EnsureRuntime(EntityUid uid)
@@ -519,7 +612,7 @@ public sealed class ProgrammableComputerSystem : EntitySystem
 
     private void InitializeMoonSharpScript(EntityUid uid, ComputerRuntime runtime)
     {
-        var script = new Script(CoreModules.Preset_HardSandbox | CoreModules.Coroutine);
+        var script = new Script(CoreModules.Preset_HardSandbox | CoreModules.Coroutine | CoreModules.ErrorHandling | CoreModules.LoadMethods);
         script.Options.CheckThreadAccess = false;
         script.Options.ScriptLoader = new DenyAllScriptLoader();
         
@@ -961,6 +1054,8 @@ public sealed class ProgrammableComputerSystem : EntitySystem
             return DynValue.NewBoolean(true);
         }, "net_close"));
 
+        RegisterAtmosApi(uid, runtime, hostTable);
+
         script.Globals.Set("__host", DynValue.NewTable(hostTable));
 
         // Initialize Lua standard library functions
@@ -1109,6 +1204,18 @@ function os.rename(oldPath, newPath) return h.os_rename(oldPath, newPath) end
 function os.getenv(_) return nil end
 function os.execute(_) return h.os_execute() end
 function os.exit(_) h.os_exit() end
+function os.sleep(seconds)
+    seconds = tonumber(seconds) or 0
+    if seconds <= 0 then
+        return true
+    end
+
+    local deadline = os.clock() + seconds
+    repeat
+        event.pull("tick")
+    until os.clock() >= deadline
+    return true
+end
 
 function loadfile(path)
     local source = fs.read(path)
@@ -1134,6 +1241,27 @@ function net.ws(url) return h.net_ws(url) end
 function net.send(handle, payload) return h.net_send(handle, payload) end
 function net.receive(handle, timeout) return h.net_receive(handle, timeout) end
 function net.close(handle) return h.net_close(handle) end
+
+atmos = {}
+function atmos.list() return h.atmos_list() end
+function atmos.read(label) return h.atmos_read(label) end
+function atmos.pump_enabled(label, enabled) h.atmos_pump_enabled(label, enabled) end
+function atmos.pump_read(label) return h.atmos_pump_read(label) end
+function atmos.pump_rate(label, rate) h.atmos_pump_rate(label, rate) end
+function atmos.pump_pressure(label, kpa) h.atmos_pump_pressure(label, kpa) end
+function atmos.valve(label, open) h.atmos_valve(label, open) end
+function atmos.scrubber(label, params) h.atmos_scrubber(label, params) end
+function atmos.scrubber_read(label) return h.atmos_scrubber_read(label) end
+function atmos.filter(label, params) h.atmos_filter(label, params) end
+function atmos.filter_read(label) return h.atmos_filter_read(label) end
+function atmos.vent(label, params) h.atmos_vent(label, params) end
+function atmos.vent_read(label) return h.atmos_vent_read(label) end
+function atmos.injector(label, params) h.atmos_injector(label, params) end
+function atmos.injector_read(label) return h.atmos_injector_read(label) end
+function atmos.mixer(label, params) h.atmos_mixer(label, params) end
+function atmos.mixer_read(label) return h.atmos_mixer_read(label) end
+function atmos.regulator(label, params) h.atmos_regulator(label, params) end
+function atmos.regulator_read(label) return h.atmos_regulator_read(label) end
 """);
     }
 
@@ -1919,6 +2047,11 @@ function net.close(handle) return h.net_close(handle) end
 
         public bool TryRead(string path, out string text) =>
             _files.TryGetValue(Normalize(path), out text!);
+
+        public IEnumerable<KeyValuePair<string, string>> EnumerateFiles()
+        {
+            return _files.OrderBy(kvp => kvp.Key, StringComparer.Ordinal);
+        }
 
         public bool TryWrite(string path, string text, ComputerCapabilities capabilities, out string error)
         {

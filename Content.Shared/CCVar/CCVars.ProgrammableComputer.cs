@@ -13,6 +13,12 @@ public sealed partial class CCVars
     public static readonly CVarDef<string> ProgrammableComputerKeyboardLayout =
         CVarDef.Create("programmable_computer.keyboard_layout", "us", CVar.CLIENTONLY | CVar.ARCHIVE);
 
+    /// <summary>
+    /// Default window size for programmable computers stored as "width,height" or empty for optimal size.
+    /// </summary>
+    public static readonly CVarDef<string> ProgrammableComputerDefaultWindowSize =
+        CVarDef.Create("programmable_computer.default_window_size", "", CVar.CLIENTONLY | CVar.ARCHIVE);
+
     [CVarControl(AdminFlags.Server)]
     public static readonly CVarDef<bool> ProgrammableComputerNetworkEnabled =
         CVarDef.Create("programmable_computer.network.enabled", false, CVar.SERVERONLY);

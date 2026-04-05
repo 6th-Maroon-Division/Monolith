@@ -250,5 +250,36 @@ namespace Content.Server.Atmos.Piping.Unary.EntitySystems
         {
             UpdateState(uid, component);
         }
+
+        // ─── Public control API ───────────────────────────────────────────
+        public void SetEnabled(EntityUid uid, GasVentScrubberComponent comp, bool enabled)
+        {
+            comp.Enabled = enabled;
+            UpdateState(uid, comp);
+        }
+
+        public void SetTransferRate(EntityUid uid, GasVentScrubberComponent comp, float rate)
+        {
+            comp.TransferRate = rate;
+        }
+
+        public void SetPumpDirection(EntityUid uid, GasVentScrubberComponent comp, ScrubberPumpDirection direction)
+        {
+            comp.PumpDirection = direction;
+            UpdateState(uid, comp);
+        }
+
+        public void SetWideNet(EntityUid uid, GasVentScrubberComponent comp, bool wideNet)
+        {
+            comp.WideNet = wideNet;
+            UpdateState(uid, comp);
+        }
+
+        public void SetFilterGases(EntityUid uid, GasVentScrubberComponent comp, IEnumerable<Gas> gases)
+        {
+            comp.FilterGases.Clear();
+            foreach (var gas in gases)
+                comp.FilterGases.Add(gas);
+        }
     }
 }

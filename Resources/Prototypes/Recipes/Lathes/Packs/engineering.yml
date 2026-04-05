@@ -9,6 +9,7 @@
   - Wrench
   - CrowbarGreen
   - Multitool
+  - ProgrammableComputerLinker
   - MaintenanceJack #Mono
   # - NetworkConfigurator # Frontier: downgrade vs. multitool
   - Signaller
@@ -92,6 +93,7 @@
   - EmitterCircuitboard
   - ContainmentFieldGeneratorCircuitboard # Mono
   - TelecomServerCircuitboard
+  - ProgrammableComputerCircuitboard
   - SMESAdvancedMachineCircuitboard
   - CrystallizerMachineCircuitboard # Mono/Funky
   # - HolopadMachineCircuitboard # Frontier: use NF variant

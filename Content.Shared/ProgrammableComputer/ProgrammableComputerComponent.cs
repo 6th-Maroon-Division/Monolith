@@ -38,4 +38,9 @@ public sealed partial class ProgrammableComputerComponent : Component
 
     [ViewVariables]
     public List<string> TerminalHistory { get; } = new();
+
+    /// <summary>Stores all files on the programmable computer.</summary>
+    /// <remarks>Key is the filename, value is the file contents.</remarks>
+    [ViewVariables]
+    public Dictionary<string, string> Files { get; } = new();
 }

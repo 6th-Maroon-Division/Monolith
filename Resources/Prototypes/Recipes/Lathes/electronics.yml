@@ -619,6 +619,11 @@
   result: HolopadMachineCircuitboard
 
 - type: latheRecipe
+  parent: BaseCircuitboardRecipe
+  id: ProgrammableComputerCircuitboard
+  result: ProgrammableComputerCircuitboard
+
+- type: latheRecipe
   parent: BaseBluespaceCircuitboardRecipe
   id: AiCoreElectronics
   result: AiCoreElectronics

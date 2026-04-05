@@ -25,6 +25,7 @@
     <BuildDependency Project="RobustToolbox/Lidgren.Network/Lidgren.Network.csproj" />
   </Project>
   <Project Path="Content.IntegrationTests/Content.IntegrationTests.csproj" />
+  <Project Path="Content.ProgrammableComputer.Tests/Content.ProgrammableComputer.Tests.csproj" />
   <Project Path="Content.MapRenderer/Content.MapRenderer.csproj" />
   <Project Path="Content.Packaging/Content.Packaging.csproj" />
   <Project Path="Content.PatreonParser/Content.PatreonParser.csproj">

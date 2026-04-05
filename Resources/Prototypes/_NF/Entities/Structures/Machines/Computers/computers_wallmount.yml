@@ -1,5 +1,20 @@
 # Mass scanner telescreen
 - type: entity
+  parent: [BaseStructureComputerWallmount, ComputerProgrammable]
+  id: ComputerWallmountProgrammable
+  name: wallmount programmable computer
+  components:
+  - type: Sprite
+    drawdepth: WallMountedItems
+    layers:
+    - map: ["computerLayerBody"]
+      sprite: _NF/Structures/Machines/computer_wallmount.rsi
+      state: computer_wallmount
+    - map: ["computerLayerScreen"]
+      sprite: Structures/Machines/computers.rsi
+      state: generic
+
+- type: entity
   parent: [BaseStructureComputerWallmount, ComputerRadar]
   id: ComputerWallmountRadar
   components:

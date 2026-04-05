@@ -16,6 +16,14 @@
                  FontColorOverride="{xNamespace:Static s:StyleNano.NanoGold}"
                  StyleClasses="LabelKeyText"/>
              <OptionButton Name="KeyboardLayoutOption" HorizontalExpand="True" />
+             <BoxContainer Orientation="Horizontal" Margin="0 8 0 0" SeparationOverride="4">
+                 <Button Name="SaveDefaultWindowSizeButton" 
+                         Text="{Loc 'ui-options-programmable-computer-save-default-size'}"
+                         ToolTip="{Loc 'ui-options-programmable-computer-save-default-size-tooltip'}" />
+                 <Button Name="ResetWindowSizesButton" 
+                         Text="{Loc 'ui-options-programmable-computer-reset-sizes'}"
+                         ToolTip="{Loc 'ui-options-programmable-computer-reset-sizes-tooltip'}" />
+             </BoxContainer>
         </BoxContainer>
         <controls:StripeBack HasBottomEdge="False" HasMargins="False">
             <Button Name="ApplyButton"

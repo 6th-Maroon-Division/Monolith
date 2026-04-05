@@ -1,0 +1,84 @@
+# Programmable Computer Part Recipes
+
+# T1 - basic tier
+- type: latheRecipe
+  parent: BaseStockPartRecipe
+  id: ProgrammableComputerCpuTier1
+  result: ProgrammableComputerCpuTier1
+
+- type: latheRecipe
+  parent: BaseStockPartRecipe
+  id: ProgrammableComputerRamTier1
+  result: ProgrammableComputerRamTier1
+
+- type: latheRecipe
+  parent: BaseStockPartRecipe
+  id: ProgrammableComputerDiskTier1
+  result: ProgrammableComputerDiskTier1
+
+- type: latheRecipe
+  parent: BaseStockPartRecipe
+  id: ProgrammableComputerNetworkTier1
+  result: ProgrammableComputerNetworkTier1
+
+- type: latheRecipe
+  parent: BaseStockPartRecipe
+  id: ProgrammableComputerGpuTier1
+  result: ProgrammableComputerGpuTier1
+
+- type: latheRecipe
+  parent: BaseStockPartRecipe
+  id: ProgrammableComputerTimerModule
+  result: ProgrammableComputerTimerModule
+
+# T2 - advanced tier
+- type: latheRecipe
+  parent: NFBaseAdvancedPartRecipe
+  id: ProgrammableComputerCpuTier2
+  result: ProgrammableComputerCpuTier2
+
+- type: latheRecipe
+  parent: NFBaseAdvancedPartRecipe
+  id: ProgrammableComputerRamTier2
+  result: ProgrammableComputerRamTier2
+
+- type: latheRecipe
+  parent: NFBaseAdvancedPartRecipe
+  id: ProgrammableComputerDiskTier2
+  result: ProgrammableComputerDiskTier2
+
+- type: latheRecipe
+  parent: NFBaseAdvancedPartRecipe
+  id: ProgrammableComputerNetworkTier2
+  result: ProgrammableComputerNetworkTier2
+
+- type: latheRecipe
+  parent: NFBaseAdvancedPartRecipe
+  id: ProgrammableComputerGpuTier2
+  result: ProgrammableComputerGpuTier2
+
+# T3 - super tier
+- type: latheRecipe
+  parent: NFBaseSuperPartRecipe
+  id: ProgrammableComputerCpuTier3
+  result: ProgrammableComputerCpuTier3
+
+- type: latheRecipe
+  parent: NFBaseSuperPartRecipe
+  id: ProgrammableComputerRamTier3
+  result: ProgrammableComputerRamTier3
+
+- type: latheRecipe
+  parent: NFBaseSuperPartRecipe
+  id: ProgrammableComputerDiskTier3
+  result: ProgrammableComputerDiskTier3
+
+- type: latheRecipe
+  parent: NFBaseSuperPartRecipe
+  id: ProgrammableComputerNetworkTier3
+  result: ProgrammableComputerNetworkTier3
+
+- type: latheRecipe
+  parent: NFBaseSuperPartRecipe
+  id: ProgrammableComputerGpuTier3
+  result: ProgrammableComputerGpuTier3

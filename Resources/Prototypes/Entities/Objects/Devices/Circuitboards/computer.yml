@@ -267,6 +267,10 @@
       state: cpu_command
     - type: ComputerBoard
       prototype: ComputerProgrammable
+    - type: ComputerTabletopBoard # Frontier
+      prototype: ComputerTabletopProgrammable # Frontier
+    - type: ComputerWallmountBoard # Frontier
+      prototype: ComputerWallmountProgrammable # Frontier
 
 - type: entity
   parent: BaseComputerCircuitboard

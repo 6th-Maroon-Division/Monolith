@@ -58,9 +58,15 @@ function touch_emit(event_name, ...)
     end
 
     for i = 1, #bucket do
-        local ok, err = pcall(bucket[i], ...)
-        if not ok then
-            term.writeLine('touch listener error [' .. tostring(event_name) .. ']: ' .. tostring(err))
+        if type(bucket[i]) == 'function' then
+            if type(pcall) == 'function' then
+                local ok, err = pcall(bucket[i], ...)
+                if not ok then
+                    term.writeLine('touch listener error [' .. tostring(event_name) .. ']: ' .. tostring(err))
+                end
+            else
+                bucket[i](...)
+            end
         end
     end
 end

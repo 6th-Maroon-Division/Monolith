@@ -1,3 +1,8 @@
+using System;
+using System.IO;
+using System.Numerics;
+using System.Text.Json;
+using System.Collections.Generic;
 using Content.Client.Computer;
 using Content.Client.UserInterface.Controls;
 using Content.Shared.CCVar;
@@ -8,6 +13,7 @@ using Robust.Client.UserInterface;
 using Robust.Client.UserInterface.XAML;
 using Robust.Shared.Configuration;
 using Robust.Shared.Maths;
+using Robust.Shared.Utility;
 using Keyboard = Robust.Client.Input.Keyboard;
 
 namespace Content.Client.ProgrammableComputer;
@@ -39,8 +45,12 @@ public sealed partial class ProgrammableComputerWindow : FancyWindow, IComputerW
     }
 
     private ComputerBoundUserInterfaceBase? _bui;
+    private EntityUid _owner;
     private bool _inputLocked;
     private string _baseTitle = string.Empty;
+    private ProgrammableComputerDeviceWindow? _deviceWindow;
+    private ProgrammableComputerFileManagerWindow? _fileWindow;
+    private ProgrammableComputerBoundUserInterfaceState? _lastState;
 
     public ProgrammableComputerWindow()
     {
@@ -56,25 +66,53 @@ public sealed partial class ProgrammableComputerWindow : FancyWindow, IComputerW
         StartButton.OnPressed += _ => _bui?.SendMessage(new ProgrammableComputerPowerActionMessage(ProgrammableComputerPowerAction.Start));
         ShutdownButton.OnPressed += _ => _bui?.SendMessage(new ProgrammableComputerPowerActionMessage(ProgrammableComputerPowerAction.Shutdown));
         RebootButton.OnPressed += _ => _bui?.SendMessage(new ProgrammableComputerPowerActionMessage(ProgrammableComputerPowerAction.Reboot));
+        DevicesButton.OnPressed += _ => ToggleDeviceWindow();
+        FilesButton.OnPressed += _ => ToggleFileWindow();
 
         SetInputLocked(false);
 
         OnClose += () =>
         {
+            SaveWindowSize();
             _input.FirstChanceOnKeyEvent -= OnFirstChanceKeyEvent;
             TerminalSurface.OnTerminalClicked -= OnTerminalClicked;
             TerminalSurface.OnCellPressed -= OnTerminalCellPressed;
+            _deviceWindow = null;
+            _fileWindow = null;
         };
     }
 
     public void SetupComputerWindow(ComputerBoundUserInterfaceBase cb)
     {
         _bui = cb;
+        if (cb is BoundUserInterface bui)
+        {
+            _owner = bui.Owner;
+            LoadWindowSize();
+        }
         SetInputLocked(false);
+    }
+
+    private void ToggleDeviceWindow()
+    {
+        if (_deviceWindow == null || !_deviceWindow.IsOpen)
+        {
+            _deviceWindow = new ProgrammableComputerDeviceWindow();
+            _deviceWindow.SetupWindow(_bui!);
+            _deviceWindow.OpenCenteredRight();
+            if (_lastState != null)
+                _deviceWindow.UpdateState(_lastState);
+            _bui?.SendMessage(new ProgrammableComputerRefreshStateMessage());
+        }
+        else
+        {
+            _deviceWindow.Close();
+        }
     }
 
     public void UpdateState(ProgrammableComputerBoundUserInterfaceState state)
     {
+        _lastState = state;
         TerminalSurface.UpdateTerminal(state.TerminalCells, state.Width, state.Height, state.CursorX, state.CursorY, state.CursorBlink);
         StartButton.Disabled = state.PoweredOn || state.Booting;
         ShutdownButton.Disabled = !state.PoweredOn;
@@ -84,6 +122,31 @@ public sealed partial class ProgrammableComputerWindow : FancyWindow, IComputerW
             : state.PoweredOn
                 ? "Power: ON"
                 : "Power: OFF";
+
+        _deviceWindow?.UpdateState(state);
+        _fileWindow?.UpdateState(state);
+    }
+
+    public void ReceiveMessage(BoundUserInterfaceMessage message)
+    {
+        _fileWindow?.ReceiveMessage(message);
+    }
+
+    private void ToggleFileWindow()
+    {
+        if (_fileWindow == null || !_fileWindow.IsOpen)
+        {
+            _fileWindow = new ProgrammableComputerFileManagerWindow();
+            _fileWindow.SetupWindow(_bui!);
+            _fileWindow.OpenCenteredRight();
+            if (_lastState != null)
+                _fileWindow.UpdateState(_lastState);
+            _bui?.SendMessage(new ProgrammableComputerRefreshStateMessage());
+        }
+        else
+        {
+            _fileWindow.Close();
+        }
     }
 
     protected override void ExitedTree()
@@ -152,5 +215,93 @@ public sealed partial class ProgrammableComputerWindow : FancyWindow, IComputerW
         }
 
         keyEvent.Handle();
+    }
+
+    private void LoadWindowSize()
+    {
+        try
+        {
+            var sizeData = LoadWindowSizes();
+            var key = _owner.ToString();
+            if (sizeData.TryGetValue(key, out var savedSize))
+            {
+                SetSize = new Vector2(savedSize.Width, savedSize.Height);
+                return;
+            }
+
+            // Fall back to default size if set
+            var defaultSizeStr = _cfg.GetCVar(CCVars.ProgrammableComputerDefaultWindowSize);
+            if (!string.IsNullOrEmpty(defaultSizeStr) && defaultSizeStr.Contains(','))
+            {
+                var parts = defaultSizeStr.Split(',');
+                if (float.TryParse(parts[0], out var width) && float.TryParse(parts[1], out var height))
+                {
+                    SetSize = new Vector2(width, height);
+                }
+            }
+        }
+        catch
+        {
+            // Silently fail if window size can't be loaded
+        }
+    }
+
+    private void SaveWindowSize()
+    {
+        try
+        {
+            if (_owner == EntityUid.Invalid)
+                return;
+
+            var sizeData = LoadWindowSizes();
+            var size = PixelSizeBox.Size;
+            sizeData[_owner.ToString()] = new SizeData { Width = size.X, Height = size.Y };
+            SaveWindowSizes(sizeData);
+        }
+        catch
+        {
+            // Silently fail if window size can't be saved
+        }
+    }
+
+    private static Dictionary<string, SizeData> LoadWindowSizes()
+    {
+        var settingsPath = GetWindowSizesPath();
+        if (!File.Exists(settingsPath))
+            return new Dictionary<string, SizeData>();
+
+        try
+        {
+            var json = File.ReadAllText(settingsPath);
+            var dict = JsonSerializer.Deserialize<Dictionary<string, SizeData>>(json);
+            return dict ?? new Dictionary<string, SizeData>();
+        }
+        catch
+        {
+            return new Dictionary<string, SizeData>();
+        }
+    }
+
+    private static void SaveWindowSizes(Dictionary<string, SizeData> sizeData)
+    {
+        var settingsPath = GetWindowSizesPath();
+        var dir = Path.GetDirectoryName(settingsPath);
+        if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+            Directory.CreateDirectory(dir);
+
+        var json = JsonSerializer.Serialize(sizeData, new JsonSerializerOptions { WriteIndented = true });
+        File.WriteAllText(settingsPath, json);
+    }
+
+    private static string GetWindowSizesPath()
+    {
+        var baseDir = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        return Path.Combine(baseDir, "SpaceStation14", "programmable_computer_window_sizes.json");
+    }
+
+    private record SizeData
+    {
+        public float Width { get; set; }
+        public float Height { get; set; }
     }
 }

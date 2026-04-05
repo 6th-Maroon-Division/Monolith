@@ -1,7 +1,104 @@
 using Robust.Shared.Serialization;
 using Robust.Shared.Maths;
+using System.Collections.Generic;
 
 namespace Content.Shared.ProgrammableComputer;
+
+// ─── File management DTOs ──────────────────────────────────────────────────
+
+/// <summary>Entry representing a file stored on the programmable computer.</summary>
+[Serializable, NetSerializable]
+public sealed class ProgrammableComputerFileEntry
+{
+    public string Name = string.Empty;
+    public uint Size;
+    public DateTime Modified;
+
+    public ProgrammableComputerFileEntry() { }
+    public ProgrammableComputerFileEntry(string name, uint size, DateTime modified)
+    {
+        Name = name;
+        Size = size;
+        Modified = modified;
+    }
+}
+
+// ─── Atmos device link DTOs ────────────────────────────────────────────────
+
+/// <summary>A named link that the computer has established to an atmos device.</summary>
+[Serializable, NetSerializable]
+public sealed class AtmosLinkEntry
+{
+    public string Label = string.Empty;
+    public string DeviceType = string.Empty;
+    public string Address = string.Empty;
+    public string EntityName = string.Empty;
+
+    public AtmosLinkEntry() { }
+    public AtmosLinkEntry(string label, string deviceType, string address, string entityName)
+    {
+        Label = label;
+        DeviceType = deviceType;
+        Address = address;
+        EntityName = entityName;
+    }
+}
+
+/// <summary>A device discovered during a nearby scan, not yet linked.</summary>
+[Serializable, NetSerializable]
+public sealed class AtmosNearbyEntry
+{
+    public NetEntity Target;
+    public string EntityName = string.Empty;
+    public string DeviceType = string.Empty;
+    public string Address = string.Empty;
+
+    public AtmosNearbyEntry() { }
+    public AtmosNearbyEntry(NetEntity target, string entityName, string deviceType, string address)
+    {
+        Target = target;
+        EntityName = entityName;
+        DeviceType = deviceType;
+        Address = address;
+    }
+}
+
+// ─── Atmos BUI messages ─────────────────────────────────────────────────────
+
+[Serializable, NetSerializable]
+public sealed class ProgrammableComputerAtmosScanMessage : BoundUserInterfaceMessage { }
+
+[Serializable, NetSerializable]
+public sealed class ProgrammableComputerAtmosLinkMessage : BoundUserInterfaceMessage
+{
+    public readonly string Label;
+    public readonly NetEntity Target;
+
+    public ProgrammableComputerAtmosLinkMessage(string label, NetEntity target)
+    {
+        Label = label;
+        Target = target;
+    }
+}
+
+[Serializable, NetSerializable]
+public sealed class ProgrammableComputerAtmosUnlinkMessage : BoundUserInterfaceMessage
+{
+    public readonly string Label;
+    public ProgrammableComputerAtmosUnlinkMessage(string label) => Label = label;
+}
+
+[Serializable, NetSerializable]
+public sealed class ProgrammableComputerAtmosRenameMessage : BoundUserInterfaceMessage
+{
+    public readonly string OldLabel;
+    public readonly string NewLabel;
+    public ProgrammableComputerAtmosRenameMessage(string oldLabel, string newLabel)
+    {
+        OldLabel = oldLabel;
+        NewLabel = newLabel;
+    }
+}
 
 [Serializable, NetSerializable]
 public enum ProgrammableComputerUiKey : byte
@@ -26,6 +123,11 @@ public sealed class ProgrammableComputerPowerActionMessage : BoundUserInterfaceM
     {
         Action = action;
     }
+}
+
+[Serializable, NetSerializable]
+public sealed class ProgrammableComputerRefreshStateMessage : BoundUserInterfaceMessage
+{
 }
 
 /// <summary>
@@ -96,6 +198,61 @@ public sealed class ProgrammableComputerTextInputMessage : BoundUserInterfaceMes
     }
 }
 
+// ─── File management messages ──────────────────────────────────────────────
+
+[Serializable, NetSerializable]
+public sealed class ProgrammableComputerRequestFileListMessage : BoundUserInterfaceMessage { }
+
+[Serializable, NetSerializable]
+public sealed class ProgrammableComputerUploadFileMessage : BoundUserInterfaceMessage
+{
+    public readonly string FileName;
+    public readonly byte[] Content;
+
+    public ProgrammableComputerUploadFileMessage(string fileName, byte[] content)
+    {
+        FileName = fileName;
+        Content = content;
+    }
+}
+
+[Serializable, NetSerializable]
+public sealed class ProgrammableComputerDownloadFileMessage : BoundUserInterfaceMessage
+{
+    public readonly string FileName;
+
+    public ProgrammableComputerDownloadFileMessage(string fileName)
+    {
+        FileName = fileName;
+    }
+}
+
+[Serializable, NetSerializable]
+public sealed class ProgrammableComputerFileContentMessage : BoundUserInterfaceMessage
+{
+    public readonly string FileName;
+    public readonly byte[] Content;
+
+    public ProgrammableComputerFileContentMessage(string fileName, byte[] content)
+    {
+        FileName = fileName;
+        Content = content;
+    }
+}
+
+[Serializable, NetSerializable]
+public sealed class ProgrammableComputerDeleteFileMessage : BoundUserInterfaceMessage
+{
+    public readonly string FileName;
+
+    public ProgrammableComputerDeleteFileMessage(string fileName)
+    {
+        FileName = fileName;
+    }
+}
+
+// ─── Terminal cell and BUI state ──────────────────────────────────────────
+
 [Serializable, NetSerializable]
 public sealed class ProgrammableComputerTerminalCell
 {
@@ -125,6 +282,17 @@ public sealed class ProgrammableComputerBoundUserInterfaceState : BoundUserInter
     public readonly bool CursorBlink;
     public readonly bool PoweredOn;
     public readonly bool Booting;
+    public readonly int RamAvailableKiB;
+    public readonly int DiskAvailableKiB;
+
+    /// <summary>Always-present list of configured atmos device links.</summary>
+    public readonly AtmosLinkEntry[] AtmosLinks;
+
+    /// <summary>Non-null only after the client requests a scan; null means no scan has been done yet.</summary>
+    public readonly AtmosNearbyEntry[]? AtmosNearby;
+
+    /// <summary>List of files stored on the programmable computer.</summary>
+    public readonly ProgrammableComputerFileEntry[] Files;
 
     public ProgrammableComputerBoundUserInterfaceState(
         ProgrammableComputerTerminalCell[] terminalCells,
@@ -137,7 +305,12 @@ public sealed class ProgrammableComputerBoundUserInterfaceState : BoundUserInter
         int cursorY,
         bool cursorBlink,
         bool poweredOn,
-        bool booting)
+        bool booting,
+        int ramAvailableKiB = 0,
+        int diskAvailableKiB = 0,
+        AtmosLinkEntry[]? atmosLinks = null,
+        AtmosNearbyEntry[]? atmosNearby = null,
+        ProgrammableComputerFileEntry[]? files = null)
     {
         TerminalCells = terminalCells;
         HardwareSummary = hardwareSummary;
@@ -150,6 +323,11 @@ public sealed class ProgrammableComputerBoundUserInterfaceState : BoundUserInter
         CursorBlink = cursorBlink;
         PoweredOn = poweredOn;
         Booting = booting;
+        RamAvailableKiB = ramAvailableKiB;
+        DiskAvailableKiB = diskAvailableKiB;
+        AtmosLinks = atmosLinks ?? [];
+        AtmosNearby = atmosNearby;
+        Files = files ?? [];
     }
 
     public ProgrammableComputerBoundUserInterfaceState(
@@ -157,7 +335,7 @@ public sealed class ProgrammableComputerBoundUserInterfaceState : BoundUserInter
         string hardwareSummary,
         string limitSummary,
         string prompt)
-        : this(terminalCells, hardwareSummary, limitSummary, prompt, ProgrammableComputerComponent.TerminalWidth, ProgrammableComputerComponent.TerminalHeight, 1, 1, false, false, false)
+        : this(terminalCells, hardwareSummary, limitSummary, prompt, ProgrammableComputerComponent.TerminalWidth, ProgrammableComputerComponent.TerminalHeight, 1, 1, false, false, false, 0, 0, null, null, null)
     {
     }
 }
