@@ -42,6 +42,8 @@ public sealed partial class ProgrammableComputerSystem : EntitySystem
         "api/path.lua",
         "api/keyboard.lua",
         "api/touch.lua",
+        "bin/pumptest.lua",
+        "bin/termdebug.lua",
     };
     private static readonly ResPath ProgrammableComputerResourceRoot = new("/ProgrammableComputer/");
     private static readonly Color DefaultTerminalForeground = Color.FromHex("#9cffad");
