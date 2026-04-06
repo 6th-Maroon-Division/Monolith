@@ -76,6 +76,7 @@ public sealed partial class ProgrammableComputerSystem : EntitySystem
     private readonly Dictionary<EntityUid, ComputerRuntime> _runtimes = new();
     private Dictionary<string, string>? _cachedRemoteRuntimeFiles;
     private string? _cachedRemoteRuntimeVersion;
+    private string? _cachedPackageIndexJson;
 
     public override void Initialize()
     {
@@ -428,8 +429,17 @@ public sealed partial class ProgrammableComputerSystem : EntitySystem
     {
         _cachedRemoteRuntimeFiles = null;
         _cachedRemoteRuntimeVersion = null;
+        _cachedPackageIndexJson = null;
 
-        if (!TryResolveCompatibleRuntimePackageVersion(out var version, out var error))
+        if (!TryFetchPackageIndexJson(out var indexJson, out var error))
+        {
+            Log.Warning($"Programmable runtime package index fetch failed: {error}");
+            return;
+        }
+
+        _cachedPackageIndexJson = indexJson;
+
+        if (!TryResolveCompatibleRuntimePackageVersion(indexJson, out var version, out error))
         {
             Log.Warning($"Programmable runtime package index fetch failed: {error}");
             return;
@@ -446,12 +456,14 @@ public sealed partial class ProgrammableComputerSystem : EntitySystem
         Log.Info($"Programmable runtime package cache loaded: {RuntimePackageName} {version} (ABI {RuntimePackageAbiMajor}).");
     }
 
-    private bool TryResolveCompatibleRuntimePackageVersion(out string version, out string error)
+    private bool TryFetchPackageIndexJson(out string indexJson, out string error)
+    {
+        return TryHttpGetText(RuntimePackageIndexUrl, out indexJson, out error);
+    }
+
+    private bool TryResolveCompatibleRuntimePackageVersion(string indexJson, out string version, out string error)
     {
         version = string.Empty;
-
-        if (!TryHttpGetText(RuntimePackageIndexUrl, out var indexJson, out error))
-            return false;
 
         try
         {
@@ -508,6 +520,29 @@ public sealed partial class ProgrammableComputerSystem : EntitySystem
         }
         catch (Exception e)
         {
+            error = $"index parse error: {e.Message}";
+            return false;
+        }
+    }
+
+    private bool TryGetCachedPackageIndexDocument(out JsonDocument document, out string error)
+    {
+        if (string.IsNullOrWhiteSpace(_cachedPackageIndexJson))
+        {
+            document = default!;
+            error = "package index is not cached";
+            return false;
+        }
+
+        try
+        {
+            document = JsonDocument.Parse(_cachedPackageIndexJson);
+            error = string.Empty;
+            return true;
+        }
+        catch (Exception e)
+        {
+            document = default!;
             error = $"index parse error: {e.Message}";
             return false;
         }
@@ -575,6 +610,230 @@ public sealed partial class ProgrammableComputerSystem : EntitySystem
 
         parsed = new SemVersion(major, minor, patch);
         return true;
+    }
+
+    private bool TryGetPackageNames(out List<string> names, out string error)
+    {
+        names = new List<string>();
+
+        if (!TryGetCachedPackageIndexDocument(out var document, out error))
+            return false;
+
+        using (document)
+        {
+            if (!document.RootElement.TryGetProperty("packages", out var packages) || packages.ValueKind != JsonValueKind.Object)
+            {
+                error = "missing packages object";
+                return false;
+            }
+
+            foreach (var property in packages.EnumerateObject())
+                names.Add(property.Name);
+        }
+
+        names.Sort(StringComparer.Ordinal);
+        error = string.Empty;
+        return true;
+    }
+
+    private bool TryGetPackageLatestVersion(string packageName, out string version, out string error)
+    {
+        version = string.Empty;
+
+        if (!TryGetCachedPackageIndexDocument(out var document, out error))
+            return false;
+
+        using (document)
+        {
+            if (!TryGetPackageElement(document.RootElement, packageName, out var packageElement, out error))
+                return false;
+
+            if (!packageElement.TryGetProperty("latest", out var latestElement) || latestElement.ValueKind != JsonValueKind.String)
+            {
+                error = $"package '{packageName}' is missing latest version";
+                return false;
+            }
+
+            var latest = latestElement.GetString();
+            if (string.IsNullOrWhiteSpace(latest))
+            {
+                error = $"package '{packageName}' latest version is empty";
+                return false;
+            }
+
+            version = latest;
+            error = string.Empty;
+            return true;
+        }
+    }
+
+    private bool TryGetPackageVersionFiles(string packageName, string? requestedVersion, out string resolvedVersion, out List<string> files, out string error)
+    {
+        resolvedVersion = string.Empty;
+        files = new List<string>();
+
+        if (!TryGetCachedPackageIndexDocument(out var document, out error))
+            return false;
+
+        using (document)
+        {
+            if (!TryGetPackageElement(document.RootElement, packageName, out var packageElement, out error))
+                return false;
+
+            if (!TryResolvePackageVersion(packageElement, packageName, requestedVersion, out resolvedVersion, out error))
+                return false;
+
+            if (!TryGetVersionElement(packageElement, resolvedVersion, out var versionElement, out error))
+                return false;
+
+            if (versionElement.TryGetProperty("files", out var filesElement) && filesElement.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var fileElement in filesElement.EnumerateArray())
+                {
+                    if (!fileElement.TryGetProperty("path", out var pathElement) || pathElement.ValueKind != JsonValueKind.String)
+                        continue;
+
+                    var relative = pathElement.GetString();
+                    if (string.IsNullOrWhiteSpace(relative))
+                        continue;
+
+                    files.Add(relative);
+                }
+            }
+
+            if (files.Count == 0)
+            {
+                // Backward compatibility with early index schema.
+                files.Add("lib.lua");
+                files.Add("dependencies.txt");
+                files.Add("meta.yml");
+            }
+
+            files = files
+                .Where(f => IsSafePackageRelativePath(f))
+                .Distinct(StringComparer.Ordinal)
+                .OrderBy(f => f, StringComparer.Ordinal)
+                .ToList();
+
+            if (files.Count == 0)
+            {
+                error = $"package '{packageName}' version '{resolvedVersion}' has no valid files";
+                return false;
+            }
+
+            error = string.Empty;
+            return true;
+        }
+    }
+
+    private static bool TryGetPackageElement(JsonElement root, string packageName, out JsonElement packageElement, out string error)
+    {
+        packageElement = default;
+
+        if (!root.TryGetProperty("packages", out var packages) || packages.ValueKind != JsonValueKind.Object)
+        {
+            error = "missing packages object";
+            return false;
+        }
+
+        if (!packages.TryGetProperty(packageName, out packageElement) || packageElement.ValueKind != JsonValueKind.Object)
+        {
+            error = $"package '{packageName}' not found";
+            return false;
+        }
+
+        error = string.Empty;
+        return true;
+    }
+
+    private static bool TryResolvePackageVersion(JsonElement packageElement, string packageName, string? requestedVersion, out string resolvedVersion, out string error)
+    {
+        resolvedVersion = string.Empty;
+
+        if (!string.IsNullOrWhiteSpace(requestedVersion))
+        {
+            resolvedVersion = requestedVersion.Trim();
+            error = string.Empty;
+            return true;
+        }
+
+        if (!packageElement.TryGetProperty("latest", out var latestElement) || latestElement.ValueKind != JsonValueKind.String)
+        {
+            error = $"package '{packageName}' is missing latest version";
+            return false;
+        }
+
+        var latest = latestElement.GetString();
+        if (string.IsNullOrWhiteSpace(latest))
+        {
+            error = $"package '{packageName}' latest version is empty";
+            return false;
+        }
+
+        resolvedVersion = latest;
+        error = string.Empty;
+        return true;
+    }
+
+    private static bool TryGetVersionElement(JsonElement packageElement, string version, out JsonElement versionElement, out string error)
+    {
+        versionElement = default;
+
+        if (!packageElement.TryGetProperty("versions", out var versionsElement) || versionsElement.ValueKind != JsonValueKind.Array)
+        {
+            error = "missing versions array";
+            return false;
+        }
+
+        foreach (var candidate in versionsElement.EnumerateArray())
+        {
+            if (!candidate.TryGetProperty("version", out var versionProperty) || versionProperty.ValueKind != JsonValueKind.String)
+                continue;
+
+            if (string.Equals(versionProperty.GetString(), version, StringComparison.Ordinal))
+            {
+                versionElement = candidate;
+                error = string.Empty;
+                return true;
+            }
+        }
+
+        error = $"version '{version}' not found";
+        return false;
+    }
+
+    private static bool IsSafePackageRelativePath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return false;
+
+        if (path.StartsWith('/') || path.StartsWith('\\'))
+            return false;
+
+        var normalized = path.Replace('\\', '/');
+        var parts = normalized.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        foreach (var part in parts)
+        {
+            if (part == "." || part == "..")
+                return false;
+        }
+
+        return true;
+    }
+
+    private bool TryFetchPackageFile(string packageName, string version, string relativePath, out string content, out string error)
+    {
+        content = string.Empty;
+
+        if (!IsSafePackageRelativePath(relativePath))
+        {
+            error = "invalid package path";
+            return false;
+        }
+
+        var path = $"packages/{packageName}/{version}/{relativePath}";
+        var fileUrl = new Uri(RuntimePackageRawRootUrl, path);
+        return TryHttpGetText(fileUrl, out content, out error);
     }
 
     private static int? TryReadOptionalInt(JsonElement element, string propertyName)
@@ -1330,6 +1589,67 @@ public sealed partial class ProgrammableComputerSystem : EntitySystem
             return DynValue.NewBoolean(true);
         }, "net_close"));
 
+        // Package manager API
+        hostTable.Set("pkg_list", DynValue.NewCallback((ctx, args) =>
+        {
+            if (!TryGetPackageNames(out var names, out var error))
+                return DynValue.NewTuple(DynValue.Nil, DynValue.NewString(error));
+
+            var table = new Table(script);
+            var index = 1;
+            foreach (var name in names)
+                table.Set(DynValue.NewNumber(index++), DynValue.NewString(name));
+
+            return DynValue.NewTuple(DynValue.NewTable(table), DynValue.Nil);
+        }, "pkg_list"));
+
+        hostTable.Set("pkg_latest", DynValue.NewCallback((ctx, args) =>
+        {
+            if (args.Count == 0)
+                return DynValue.NewTuple(DynValue.Nil, DynValue.NewString("package name is required"));
+
+            var packageName = ToDynString(args[0]);
+            if (!TryGetPackageLatestVersion(packageName, out var version, out var error))
+                return DynValue.NewTuple(DynValue.Nil, DynValue.NewString(error));
+
+            return DynValue.NewTuple(DynValue.NewString(version), DynValue.Nil);
+        }, "pkg_latest"));
+
+        hostTable.Set("pkg_files", DynValue.NewCallback((ctx, args) =>
+        {
+            if (args.Count == 0)
+                return DynValue.NewTuple(DynValue.Nil, DynValue.NewString("package name is required"));
+
+            var packageName = ToDynString(args[0]);
+            var requestedVersion = args.Count > 1 && args[1].Type != DataType.Nil
+                ? ToDynString(args[1])
+                : null;
+
+            if (!TryGetPackageVersionFiles(packageName, requestedVersion, out var resolvedVersion, out var files, out var error))
+                return DynValue.NewTuple(DynValue.Nil, DynValue.Nil, DynValue.NewString(error));
+
+            var fileTable = new Table(script);
+            for (var i = 0; i < files.Count; i++)
+                fileTable.Set(DynValue.NewNumber(i + 1), DynValue.NewString(files[i]));
+
+            return DynValue.NewTuple(DynValue.NewString(resolvedVersion), DynValue.NewTable(fileTable), DynValue.Nil);
+        }, "pkg_files"));
+
+        hostTable.Set("pkg_fetch", DynValue.NewCallback((ctx, args) =>
+        {
+            if (args.Count < 3)
+                return DynValue.NewTuple(DynValue.Nil, DynValue.NewString("package, version, and path are required"));
+
+            var packageName = ToDynString(args[0]);
+            var version = ToDynString(args[1]);
+            var relativePath = ToDynString(args[2]);
+
+            if (!TryFetchPackageFile(packageName, version, relativePath, out var content, out var error))
+                return DynValue.NewTuple(DynValue.Nil, DynValue.NewString(error));
+
+            return DynValue.NewTuple(DynValue.NewString(content), DynValue.Nil);
+        }, "pkg_fetch"));
+
         RegisterAtmosApi(uid, runtime, hostTable);
 
         script.Globals.Set("__host", DynValue.NewTable(hostTable));
@@ -1568,6 +1888,169 @@ function net.ws(url) return h.net_ws(url) end
 function net.send(handle, payload) return h.net_send(handle, payload) end
 function net.receive(handle, timeout) return h.net_receive(handle, timeout) end
 function net.close(handle) return h.net_close(handle) end
+
+package = {}
+
+local function semver_parts(v)
+    local a, b, c = tostring(v or ""):match("^(%d+)%.(%d+)%.(%d+)$")
+    if not a then return nil end
+    return tonumber(a), tonumber(b), tonumber(c)
+end
+
+local function semver_gte(left, right)
+    local la, lb, lc = semver_parts(left)
+    local ra, rb, rc = semver_parts(right)
+    if not la or not ra then
+        return tostring(left or "") >= tostring(right or "")
+    end
+    if la ~= ra then return la > ra end
+    if lb ~= rb then return lb > rb end
+    return lc >= rc
+end
+
+local function parse_dependency_line(line)
+    local trimmed = tostring(line or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    if trimmed == "" or trimmed:sub(1, 1) == "#" then
+        return nil, nil
+    end
+
+    local name, min = trimmed:match("^([%w%-%._]+)%s*>=%s*([%d%.]+)$")
+    if name then
+        return name, min
+    end
+
+    local bare = trimmed:match("^([%w%-%._]+)$")
+    if bare then
+        return bare, nil
+    end
+
+    return nil, nil
+end
+
+local function package_target_path(packageName, version, relative)
+    if relative:match("^bin/") or relative:match("^api/") or relative == "boot/init.lua" then
+        return "/" .. relative
+    end
+
+    return "/packages/" .. packageName .. "/" .. version .. "/" .. relative
+end
+
+local function ensure_parent_dir(path)
+    local normalized = tostring(path or "")
+    local parent = normalized:match("^(.*)/[^/]+$")
+    if not parent or parent == "" then
+        return true
+    end
+
+    local current = ""
+    for part in parent:gmatch("[^/]+") do
+        current = current .. "/" .. part
+        fs.mkdir(current)
+    end
+
+    return true
+end
+
+function package.list()
+    local names, err = h.pkg_list()
+    if names == nil then return nil, err end
+    return names
+end
+
+function package.latest(name)
+    local version, err = h.pkg_latest(name)
+    if version == nil then return nil, err end
+    return version
+end
+
+function package.files(name, version)
+    local resolved, files, err = h.pkg_files(name, version)
+    if resolved == nil then return nil, nil, err end
+    return resolved, files
+end
+
+function package.install(name, version, state)
+    if type(name) ~= "string" or name == "" then
+        return nil, "package name is required"
+    end
+
+    state = state or { installing = {}, installed = {} }
+    local key = name .. "@" .. tostring(version or "latest")
+    if state.installed[key] then
+        return true
+    end
+
+    if state.installing[key] then
+        return nil, "dependency cycle detected for " .. key
+    end
+
+    state.installing[key] = true
+
+    local resolvedVersion, files, err = package.files(name, version)
+    if resolvedVersion == nil then
+        state.installing[key] = nil
+        return nil, err
+    end
+
+    local depsText, depsErr = h.pkg_fetch(name, resolvedVersion, "dependencies.txt")
+    if depsText ~= nil then
+        for line in tostring(depsText):gmatch("[^\r\n]+") do
+            local depName, depMinVersion = parse_dependency_line(line)
+            if depName then
+                local depVersion, depErr = package.latest(depName)
+                if depVersion == nil then
+                    state.installing[key] = nil
+                    return nil, "failed to resolve dependency " .. depName .. ": " .. tostring(depErr)
+                end
+
+                if depMinVersion and not semver_gte(depVersion, depMinVersion) then
+                    state.installing[key] = nil
+                    return nil, "dependency " .. depName .. " requires >= " .. depMinVersion .. " but latest is " .. depVersion
+                end
+
+                local ok, depInstallErr = package.install(depName, depVersion, state)
+                if not ok then
+                    state.installing[key] = nil
+                    return nil, depInstallErr
+                end
+            end
+        end
+    elseif depsErr ~= nil and tostring(depsErr) ~= "" then
+        state.installing[key] = nil
+        return nil, "failed to read dependencies for " .. name .. ": " .. tostring(depsErr)
+    end
+
+    local count = 0
+    for i = 1, #files do
+        local relative = tostring(files[i])
+        if relative ~= "dependencies.txt" and relative ~= "meta.yml" then
+            local content, fetchErr = h.pkg_fetch(name, resolvedVersion, relative)
+            if content == nil then
+                state.installing[key] = nil
+                return nil, "failed to fetch " .. relative .. ": " .. tostring(fetchErr)
+            end
+
+            local target = package_target_path(name, resolvedVersion, relative)
+            ensure_parent_dir(target)
+            local ok, writeErr = fs.write(target, content)
+            if ok == nil then
+                state.installing[key] = nil
+                return nil, "failed to write " .. target .. ": " .. tostring(writeErr)
+            end
+
+            count = count + 1
+        end
+    end
+
+    state.installing[key] = nil
+    state.installed[key] = true
+    return {
+        ok = true,
+        name = name,
+        version = resolvedVersion,
+        filesInstalled = count,
+    }
+end
 
 atmos = {}
 function atmos.list() return h.atmos_list() end
