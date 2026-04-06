@@ -6,3 +6,6 @@
 	path = MoonSharp
 	url = https://github.com/6th-Maroon-Division/moonsharp.git
 	branch = master
+[submodule "ProgrammablePackages"]
+	path = ProgrammablePackages
+	url = git@github.com:6th-Maroon-Division/monolith-programmable-packages.git
