@@ -486,7 +486,10 @@ public sealed partial class ProgrammableComputerSystem : EntitySystem
                 if (string.IsNullOrWhiteSpace(candidateText) || !TryParseSemVersion(candidateText, out var candidate))
                     continue;
 
-                if (candidate.Major != RuntimePackageAbiMajor)
+                var minAbi = TryReadOptionalInt(item, "minAbi") ?? candidate.Major;
+                var maxAbi = TryReadOptionalInt(item, "maxAbi") ?? candidate.Major;
+
+                if (RuntimePackageAbiMajor < minAbi || RuntimePackageAbiMajor > maxAbi)
                     continue;
 
                 if (selected == null || candidate.CompareTo(selected.Value) > 0)
@@ -572,6 +575,19 @@ public sealed partial class ProgrammableComputerSystem : EntitySystem
 
         parsed = new SemVersion(major, minor, patch);
         return true;
+    }
+
+    private static int? TryReadOptionalInt(JsonElement element, string propertyName)
+    {
+        if (!element.TryGetProperty(propertyName, out var property))
+            return null;
+
+        return property.ValueKind switch
+        {
+            JsonValueKind.Number when property.TryGetInt32(out var numberValue) => numberValue,
+            JsonValueKind.String when int.TryParse(property.GetString(), NumberStyles.None, CultureInfo.InvariantCulture, out var stringValue) => stringValue,
+            _ => null,
+        };
     }
 
     private static bool TryGetVfsPathFromResource(ResPath resourcePath, out string vfsPath)
