@@ -4,6 +4,7 @@ using System.IO;
 using System.Net.Http;
 using System.Net.WebSockets;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Linq;
 using Content.Shared.CCVar;
@@ -26,7 +27,22 @@ namespace Content.Server.ProgrammableComputer;
 public sealed partial class ProgrammableComputerSystem : EntitySystem
 {
     private static readonly TimeSpan BootStageDelay = TimeSpan.FromMilliseconds(350);
+    private static readonly TimeSpan RuntimePackageFetchTimeout = TimeSpan.FromSeconds(10);
+    private const string ComputerPlatformVersion = "1.0.0";
+    private const int ComputerPlatformAbiMajor = 1;
+    private const int ComputerPlatformAbiMinor = 0;
     private const int MinRuntimeRamKiB = 64;
+    private const string RuntimePackageName = "monolith-runtime";
+    private const int RuntimePackageAbiMajor = ComputerPlatformAbiMajor;
+    private static readonly Uri RuntimePackageIndexUrl = new("https://raw.githubusercontent.com/6th-Maroon-Division/monolith-programmable-packages/main/index/index.json");
+    private static readonly Uri RuntimePackageRawRootUrl = new("https://raw.githubusercontent.com/6th-Maroon-Division/monolith-programmable-packages/main/");
+    private static readonly string[] RuntimePackageRequiredFiles =
+    {
+        "boot/init.lua",
+        "api/path.lua",
+        "api/keyboard.lua",
+        "api/touch.lua",
+    };
     private static readonly ResPath ProgrammableComputerResourceRoot = new("/ProgrammableComputer/");
     private static readonly Color DefaultTerminalForeground = Color.FromHex("#9cffad");
     private static readonly Color DefaultTerminalBackground = Color.FromHex("#070a0c");
@@ -58,6 +74,8 @@ public sealed partial class ProgrammableComputerSystem : EntitySystem
     [Dependency] private readonly UserInterfaceSystem _ui = default!;
 
     private readonly Dictionary<EntityUid, ComputerRuntime> _runtimes = new();
+    private Dictionary<string, string>? _cachedRemoteRuntimeFiles;
+    private string? _cachedRemoteRuntimeVersion;
 
     public override void Initialize()
     {
@@ -69,11 +87,12 @@ public sealed partial class ProgrammableComputerSystem : EntitySystem
         SubscribeLocalEvent<ProgrammableComputerComponent, ProgrammableComputerPowerActionMessage>(OnPowerAction);
         SubscribeLocalEvent<ProgrammableComputerComponent, ProgrammableComputerRefreshStateMessage>(OnRefreshState);
         SubscribeLocalEvent<ProgrammableComputerComponent, ProgrammableComputerRunCommandMessage>(OnRunCommand);
-            SubscribeLocalEvent<ProgrammableComputerComponent, ProgrammableComputerRequestFileListMessage>(OnRequestFileList);
-            SubscribeLocalEvent<ProgrammableComputerComponent, ProgrammableComputerDeleteFileMessage>(OnDeleteFile);
-            SubscribeLocalEvent<ProgrammableComputerComponent, ProgrammableComputerDownloadFileMessage>(OnDownloadFile);
-            SubscribeLocalEvent<ProgrammableComputerComponent, ProgrammableComputerUploadFileMessage>(OnUploadFile);
+        SubscribeLocalEvent<ProgrammableComputerComponent, ProgrammableComputerRequestFileListMessage>(OnRequestFileList);
+        SubscribeLocalEvent<ProgrammableComputerComponent, ProgrammableComputerDeleteFileMessage>(OnDeleteFile);
+        SubscribeLocalEvent<ProgrammableComputerComponent, ProgrammableComputerDownloadFileMessage>(OnDownloadFile);
+        SubscribeLocalEvent<ProgrammableComputerComponent, ProgrammableComputerUploadFileMessage>(OnUploadFile);
         InitializeAtmos();
+        RefreshRuntimePackageCache();
     }
 
     public override void Update(float frameTime)
@@ -348,6 +367,7 @@ public sealed partial class ProgrammableComputerSystem : EntitySystem
 
         var defaultStorageCaps = new ComputerCapabilities { MaxFiles = 32, MaxFileSizeKiB = 64, TotalDiskKiB = 256 };
         MountBundledPrograms(runtime, defaultStorageCaps);
+        MountRemoteRuntimePrograms(runtime, defaultStorageCaps);
 
         if (!runtime.FileSystem.TryRead("/boot/init.lua", out var source))
         {
@@ -389,6 +409,169 @@ public sealed partial class ProgrammableComputerSystem : EntitySystem
 
             runtime.FileSystem.TryWrite(vfsPath, source, capabilities, out _);
         }
+    }
+
+    private void MountRemoteRuntimePrograms(ComputerRuntime runtime, ComputerCapabilities capabilities)
+    {
+        if (_cachedRemoteRuntimeFiles == null || _cachedRemoteRuntimeFiles.Count == 0)
+            return;
+
+        foreach (var (relativePath, source) in _cachedRemoteRuntimeFiles)
+        {
+            var vfsPath = "/" + relativePath.TrimStart('/');
+            EnsureVfsDirectory(runtime.FileSystem, GetVfsParentDirectory(vfsPath));
+            runtime.FileSystem.TryWrite(vfsPath, source, capabilities, out _);
+        }
+    }
+
+    private void RefreshRuntimePackageCache()
+    {
+        _cachedRemoteRuntimeFiles = null;
+        _cachedRemoteRuntimeVersion = null;
+
+        if (!TryResolveCompatibleRuntimePackageVersion(out var version, out var error))
+        {
+            Log.Warning($"Programmable runtime package index fetch failed: {error}");
+            return;
+        }
+
+        if (!TryFetchRuntimePackageFiles(version, out var files, out error))
+        {
+            Log.Warning($"Programmable runtime package fetch failed for version {version}: {error}");
+            return;
+        }
+
+        _cachedRemoteRuntimeVersion = version;
+        _cachedRemoteRuntimeFiles = files;
+        Log.Info($"Programmable runtime package cache loaded: {RuntimePackageName} {version} (ABI {RuntimePackageAbiMajor}).");
+    }
+
+    private bool TryResolveCompatibleRuntimePackageVersion(out string version, out string error)
+    {
+        version = string.Empty;
+
+        if (!TryHttpGetText(RuntimePackageIndexUrl, out var indexJson, out error))
+            return false;
+
+        try
+        {
+            using var document = JsonDocument.Parse(indexJson);
+            var root = document.RootElement;
+
+            if (!root.TryGetProperty("packages", out var packages))
+            {
+                error = "missing packages object";
+                return false;
+            }
+
+            if (!packages.TryGetProperty(RuntimePackageName, out var runtimePackage))
+            {
+                error = $"missing package '{RuntimePackageName}'";
+                return false;
+            }
+
+            if (!runtimePackage.TryGetProperty("versions", out var versionsElement) || versionsElement.ValueKind != JsonValueKind.Array)
+            {
+                error = "missing versions array";
+                return false;
+            }
+
+            SemVersion? selected = null;
+            foreach (var item in versionsElement.EnumerateArray())
+            {
+                if (!item.TryGetProperty("version", out var versionElement) || versionElement.ValueKind != JsonValueKind.String)
+                    continue;
+
+                var candidateText = versionElement.GetString();
+                if (string.IsNullOrWhiteSpace(candidateText) || !TryParseSemVersion(candidateText, out var candidate))
+                    continue;
+
+                if (candidate.Major != RuntimePackageAbiMajor)
+                    continue;
+
+                if (selected == null || candidate.CompareTo(selected.Value) > 0)
+                    selected = candidate;
+            }
+
+            if (selected == null)
+            {
+                error = $"no compatible version found for ABI major {RuntimePackageAbiMajor}";
+                return false;
+            }
+
+            version = selected.Value.ToString();
+            error = string.Empty;
+            return true;
+        }
+        catch (Exception e)
+        {
+            error = $"index parse error: {e.Message}";
+            return false;
+        }
+    }
+
+    private bool TryFetchRuntimePackageFiles(string version, out Dictionary<string, string> files, out string error)
+    {
+        files = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        foreach (var relative in RuntimePackageRequiredFiles)
+        {
+            var path = $"packages/{RuntimePackageName}/{version}/{relative}";
+            var fileUrl = new Uri(RuntimePackageRawRootUrl, path);
+
+            if (!TryHttpGetText(fileUrl, out var source, out error))
+                return false;
+
+            files[relative] = source;
+        }
+
+        error = string.Empty;
+        return true;
+    }
+
+    private bool TryHttpGetText(Uri url, out string text, out string error)
+    {
+        text = string.Empty;
+
+        try
+        {
+            using var message = new HttpRequestMessage(HttpMethod.Get, url);
+            using var cts = new CancellationTokenSource(RuntimePackageFetchTimeout);
+            var response = _http.Client.Send(message, cts.Token);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                error = $"HTTP {(int)response.StatusCode} for {url}";
+                return false;
+            }
+
+            text = response.Content.ReadAsStringAsync(cts.Token).GetAwaiter().GetResult();
+            error = string.Empty;
+            return true;
+        }
+        catch (Exception e)
+        {
+            error = e.Message;
+            return false;
+        }
+    }
+
+    private static bool TryParseSemVersion(string version, out SemVersion parsed)
+    {
+        parsed = default;
+        var pieces = version.Split('.', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        if (pieces.Length != 3)
+            return false;
+
+        if (!int.TryParse(pieces[0], NumberStyles.None, CultureInfo.InvariantCulture, out var major)
+            || !int.TryParse(pieces[1], NumberStyles.None, CultureInfo.InvariantCulture, out var minor)
+            || !int.TryParse(pieces[2], NumberStyles.None, CultureInfo.InvariantCulture, out var patch))
+        {
+            return false;
+        }
+
+        parsed = new SemVersion(major, minor, patch);
+        return true;
     }
 
     private static bool TryGetVfsPathFromResource(ResPath resourcePath, out string vfsPath)
@@ -589,7 +772,7 @@ public sealed partial class ProgrammableComputerSystem : EntitySystem
     {
         var now = DateTime.UtcNow;
         return runtime.FileSystem.EnumerateFiles()
-            .Select(kvp => new ProgrammableComputerFileEntry(kvp.Key, (uint) Encoding.UTF8.GetByteCount(kvp.Value), now))
+            .Select(kvp => new ProgrammableComputerFileEntry(kvp.Key, (uint)Encoding.UTF8.GetByteCount(kvp.Value), now))
             .ToArray();
     }
 
@@ -615,7 +798,7 @@ public sealed partial class ProgrammableComputerSystem : EntitySystem
         var script = new Script(CoreModules.Preset_HardSandbox | CoreModules.Coroutine | CoreModules.ErrorHandling | CoreModules.LoadMethods);
         script.Options.CheckThreadAccess = false;
         script.Options.ScriptLoader = new DenyAllScriptLoader();
-        
+
         runtime.Script = script;
         RegisterMoonSharpApi(uid, runtime, script);
     }
@@ -768,6 +951,20 @@ public sealed partial class ProgrammableComputerSystem : EntitySystem
             );
         }, "computer_limits"));
 
+        hostTable.Set("computer_version", DynValue.NewCallback((ctx, args) =>
+        {
+            var runtimePackageVersion = _cachedRemoteRuntimeVersion ?? "bundled";
+            var runtimePackageSource = _cachedRemoteRuntimeVersion == null ? "bundled" : "remote";
+
+            return DynValue.NewTuple(
+                DynValue.NewString(ComputerPlatformVersion),
+                DynValue.NewNumber(ComputerPlatformAbiMajor),
+                DynValue.NewNumber(ComputerPlatformAbiMinor),
+                DynValue.NewString(runtimePackageVersion),
+                DynValue.NewString(runtimePackageSource)
+            );
+        }, "computer_version"));
+
         hostTable.Set("computer_exec", DynValue.NewCallback((ctx, args) =>
         {
             var source = args.Count > 0 ? ToDynString(args[0]) : string.Empty;
@@ -815,7 +1012,9 @@ public sealed partial class ProgrammableComputerSystem : EntitySystem
         hostTable.Set("fs_list", DynValue.NewCallback((ctx, args) =>
         {
             var path = args.Count > 0 ? ToDynString(args[0]) : "/";
-            var entries = runtime.FileSystem.ListDirectory(path);
+            if (!runtime.FileSystem.TryListDirectory(path, out var entries, out _))
+                return DynValue.Nil;
+
             var table = new Table(script);
             var index = 1;
             foreach (var entry in entries)
@@ -835,6 +1034,32 @@ public sealed partial class ProgrammableComputerSystem : EntitySystem
                 : DynValue.Nil;
         }, "fs_read"));
 
+        hostTable.Set("fs_list_ex", DynValue.NewCallback((ctx, args) =>
+        {
+            var path = args.Count > 0 ? ToDynString(args[0]) : "/";
+            if (!runtime.FileSystem.TryListDirectory(path, out var entries, out var error))
+                return DynValue.NewTuple(DynValue.Nil, DynValue.NewString(error));
+
+            var table = new Table(script);
+            var index = 1;
+            foreach (var entry in entries)
+            {
+                table.Set(DynValue.NewNumber(index++), DynValue.NewString(entry));
+            }
+
+            return DynValue.NewTuple(DynValue.NewTable(table), DynValue.Nil);
+        }, "fs_list_ex"));
+
+        hostTable.Set("fs_read_ex", DynValue.NewCallback((ctx, args) =>
+        {
+            if (args.Count == 0)
+                return DynValue.NewTuple(DynValue.Nil, DynValue.NewString("path is required"));
+
+            return runtime.FileSystem.TryRead(ToDynString(args[0]), out var text)
+                ? DynValue.NewTuple(DynValue.NewString(text), DynValue.Nil)
+                : DynValue.NewTuple(DynValue.Nil, DynValue.NewString("File not found."));
+        }, "fs_read_ex"));
+
         hostTable.Set("fs_write", DynValue.NewCallback((ctx, args) =>
         {
             if (args.Count < 2)
@@ -845,6 +1070,18 @@ public sealed partial class ProgrammableComputerSystem : EntitySystem
             return DynValue.NewBoolean(ok);
         }, "fs_write"));
 
+        hostTable.Set("fs_write_ex", DynValue.NewCallback((ctx, args) =>
+        {
+            if (args.Count < 2)
+                return DynValue.NewTuple(DynValue.Nil, DynValue.NewString("path and text are required"));
+
+            var caps = GetCapabilities(uid);
+            var ok = runtime.FileSystem.TryWrite(ToDynString(args[0]), ToDynString(args[1]), caps, out var error);
+            return ok
+                ? DynValue.NewTuple(DynValue.NewBoolean(true), DynValue.Nil)
+                : DynValue.NewTuple(DynValue.Nil, DynValue.NewString(error));
+        }, "fs_write_ex"));
+
         hostTable.Set("fs_mkdir", DynValue.NewCallback((ctx, args) =>
         {
             if (args.Count == 0)
@@ -852,12 +1089,35 @@ public sealed partial class ProgrammableComputerSystem : EntitySystem
             return DynValue.NewBoolean(runtime.FileSystem.TryCreateDirectory(ToDynString(args[0])));
         }, "fs_mkdir"));
 
+        hostTable.Set("fs_mkdir_ex", DynValue.NewCallback((ctx, args) =>
+        {
+            if (args.Count == 0)
+                return DynValue.NewTuple(DynValue.Nil, DynValue.NewString("path is required"));
+
+            var path = ToDynString(args[0]);
+            var ok = runtime.FileSystem.TryCreateDirectory(path);
+            return ok
+                ? DynValue.NewTuple(DynValue.NewBoolean(true), DynValue.Nil)
+                : DynValue.NewTuple(DynValue.Nil, DynValue.NewString("Parent directory does not exist."));
+        }, "fs_mkdir_ex"));
+
         hostTable.Set("fs_remove", DynValue.NewCallback((ctx, args) =>
         {
             if (args.Count == 0)
                 return DynValue.NewBoolean(false);
-            return DynValue.NewBoolean(runtime.FileSystem.Remove(ToDynString(args[0])));
+            return DynValue.NewBoolean(runtime.FileSystem.TryRemove(ToDynString(args[0]), out _));
         }, "fs_remove"));
+
+        hostTable.Set("fs_remove_ex", DynValue.NewCallback((ctx, args) =>
+        {
+            if (args.Count == 0)
+                return DynValue.NewTuple(DynValue.Nil, DynValue.NewString("path is required"));
+
+            var ok = runtime.FileSystem.TryRemove(ToDynString(args[0]), out var error);
+            return ok
+                ? DynValue.NewTuple(DynValue.NewBoolean(true), DynValue.Nil)
+                : DynValue.NewTuple(DynValue.Nil, DynValue.NewString(error));
+        }, "fs_remove_ex"));
 
         hostTable.Set("fs_exists", DynValue.NewCallback((ctx, args) =>
         {
@@ -889,7 +1149,7 @@ public sealed partial class ProgrammableComputerSystem : EntitySystem
             var hour = table.Get("hour").Type == DataType.Nil ? 12 : table.Get("hour").Number;
             var min = table.Get("min").Type == DataType.Nil ? 0 : table.Get("min").Number;
             var sec = table.Get("sec").Type == DataType.Nil ? 0 : table.Get("sec").Number;
-            
+
             var value = new DateTimeOffset((int)year, (int)month, (int)day, (int)hour, (int)min, (int)sec, TimeSpan.Zero);
             return DynValue.NewNumber(value.ToUnixTimeSeconds());
         }, "os_time_from_table"));
@@ -938,9 +1198,9 @@ public sealed partial class ProgrammableComputerSystem : EntitySystem
                 return DynValue.NewTuple(DynValue.Nil, DynValue.NewString("os.remove(path) requires a path"));
 
             var path = ToDynString(args[0]);
-            return runtime.FileSystem.Remove(path)
+            return runtime.FileSystem.TryRemove(path, out var removeError)
                 ? DynValue.NewTuple(DynValue.NewBoolean(true), DynValue.Nil)
-                : DynValue.NewTuple(DynValue.Nil, DynValue.NewString("remove failed: " + path));
+                : DynValue.NewTuple(DynValue.Nil, DynValue.NewString(removeError));
         }, "os_remove"));
 
         hostTable.Set("os_rename", DynValue.NewCallback((ctx, args) =>
@@ -957,7 +1217,7 @@ public sealed partial class ProgrammableComputerSystem : EntitySystem
             if (!runtime.FileSystem.TryWrite(newPath, text, caps, out var writeError))
                 return DynValue.NewTuple(DynValue.Nil, DynValue.NewString(writeError));
 
-            runtime.FileSystem.Remove(oldPath);
+            runtime.FileSystem.TryRemove(oldPath, out _);
             return DynValue.NewTuple(DynValue.NewBoolean(true), DynValue.Nil);
         }, "os_rename"));
 
@@ -1112,6 +1372,16 @@ function computer.limits()
   local instructionBudget, timeSliceMs, memoryKiB, diskKiB, maxFiles, maxFileSizeKiB = h.computer_limits()
   return { instructionBudget = instructionBudget, timeSliceMs = timeSliceMs, memoryKiB = memoryKiB, diskKiB = diskKiB, maxFiles = maxFiles, maxFileSizeKiB = maxFileSizeKiB }
 end
+function computer.version()
+    local platform, abiMajor, abiMinor, runtimePackageVersion, runtimePackageSource = h.computer_version()
+    return {
+        platform = platform,
+        abiMajor = abiMajor,
+        abiMinor = abiMinor,
+        runtimePackageVersion = runtimePackageVersion,
+        runtimePackageSource = runtimePackageSource,
+    }
+end
 function computer.exec(source, isTransient)
   local ok, hasResult, result, err = h.computer_exec(source, isTransient ~= false)
   return { ok = ok, hasResult = hasResult, result = result or "", error = err or "" }
@@ -1120,11 +1390,31 @@ function computer.reboot() h.computer_reboot() end
 function computer.shutdown() h.computer_shutdown() end
 
 fs = {}
-function fs.list(path) return h.fs_list(path or "/") end
-function fs.read(path) return h.fs_read(path) end
-function fs.write(path, text) return h.fs_write(path, text) end
-function fs.mkdir(path) return h.fs_mkdir(path) end
-function fs.remove(path) return h.fs_remove(path) end
+function fs.list(path)
+    local entries, err = h.fs_list_ex(path or "/")
+    if entries == nil then return nil, err end
+    return entries
+end
+function fs.read(path)
+    local text, err = h.fs_read_ex(path)
+    if text == nil then return nil, err end
+    return text
+end
+function fs.write(path, text)
+    local ok, err = h.fs_write_ex(path, text)
+    if ok == nil then return nil, err end
+    return true
+end
+function fs.mkdir(path)
+    local ok, err = h.fs_mkdir_ex(path)
+    if ok == nil then return nil, err end
+    return true
+end
+function fs.remove(path)
+    local ok, err = h.fs_remove_ex(path)
+    if ok == nil then return nil, err end
+    return true
+end
 function fs.exists(path) return h.fs_exists(path) end
 
 io = {}
@@ -1132,8 +1422,15 @@ function io.open(path, mode)
   mode = mode or "r"
   local canRead = mode:find("r") or mode:find("+")
   local canWrite = mode:find("w") or mode:find("a") or mode:find("+")
-  if mode:sub(1,1) == "r" and not fs.exists(path) then return nil, "cannot open " .. path end
-  local content = fs.read(path) or ""
+    local content = ""
+    if mode:sub(1,1) == "r" then
+        local text, err = fs.read(path)
+        if text == nil then return nil, err or ("cannot open " .. tostring(path)) end
+        content = text
+    else
+        local text = fs.read(path)
+        content = text or ""
+    end
   if mode:find("w") then content = "" end
   local pos = mode:find("a") and (#content + 1) or 1
   local closed = false
@@ -1162,8 +1459,22 @@ function io.open(path, mode)
     pos = pos + #text
     return self
   end
-  function handle:flush() ensure_open(); if not canWrite then return true end; return fs.write(path, content) end
-  function handle:close() if closed then return true end; if canWrite then self:flush() end; closed = true; return true end
+    function handle:flush()
+        ensure_open()
+        if not canWrite then return true end
+        local ok, err = fs.write(path, content)
+        if ok == nil then return nil, err end
+        return true
+    end
+    function handle:close()
+        if closed then return true end
+        if canWrite then
+            local ok, err = self:flush()
+            if ok == nil then return nil, err end
+        end
+        closed = true
+        return true
+    end
   function handle:seek(whence, offset)
     ensure_open()
     whence = whence or "cur"
@@ -1218,9 +1529,9 @@ function os.sleep(seconds)
 end
 
 function loadfile(path)
-    local source = fs.read(path)
+    local source, err = fs.read(path)
     if source == nil then
-        return nil, "cannot open " .. tostring(path)
+        return nil, err or ("cannot open " .. tostring(path))
     end
     return load(source, path)
 end
@@ -1447,7 +1758,7 @@ function atmos.regulator_read(label) return h.atmos_regulator_read(label) end
             if (Encoding.UTF8.GetByteCount(responseBody) > maxResponseBytes)
                 responseBody = responseBody[..Math.Min(responseBody.Length, 1024)];
 
-            return HttpResponse.OkResult((int) response.StatusCode, responseBody);
+            return HttpResponse.OkResult((int)response.StatusCode, responseBody);
         }
         catch (Exception e)
         {
@@ -2006,7 +2317,7 @@ function atmos.regulator_read(label) return h.atmos_regulator_read(label) end
         private readonly Dictionary<string, string> _files = new();
         private readonly HashSet<string> _directories = new(StringComparer.Ordinal) { "/" };
 
-        public int UsedKiB => (int) Math.Ceiling(_files.Sum(f => Encoding.UTF8.GetByteCount(f.Value)) / 1024.0);
+        public int UsedKiB => (int)Math.Ceiling(_files.Sum(f => Encoding.UTF8.GetByteCount(f.Value)) / 1024.0);
 
         public bool Exists(string path)
         {
@@ -2016,9 +2327,20 @@ function atmos.regulator_read(label) return h.atmos_regulator_read(label) end
 
         public IEnumerable<string> ListDirectory(string path)
         {
+            return TryListDirectory(path, out var entries, out _)
+                ? entries
+                : ["Directory not found."];
+        }
+
+        public bool TryListDirectory(string path, out IReadOnlyList<string> entries, out string error)
+        {
             var normalized = Normalize(path);
             if (!_directories.Contains(normalized))
-                return ["Directory not found."];
+            {
+                entries = Array.Empty<string>();
+                error = "Directory not found.";
+                return false;
+            }
 
             var prefix = normalized == "/" ? "/" : normalized + "/";
             var results = new SortedSet<string>(StringComparer.Ordinal);
@@ -2042,7 +2364,11 @@ function atmos.regulator_read(label) return h.atmos_regulator_read(label) end
                 if (head.Length > 0) results.Add(head);
             }
 
-            return results.Count == 0 ? ["(empty)"] : results;
+            entries = results.Count == 0
+                ? ["(empty)"]
+                : results.ToArray();
+            error = string.Empty;
+            return true;
         }
 
         public bool TryRead(string path, out string text) =>
@@ -2092,20 +2418,38 @@ function atmos.regulator_read(label) return h.atmos_regulator_read(label) end
 
         public bool Remove(string path)
         {
+            return TryRemove(path, out _);
+        }
+
+        public bool TryRemove(string path, out string error)
+        {
             var normalized = Normalize(path);
             if (_files.Remove(normalized))
+            {
+                error = string.Empty;
                 return true;
+            }
 
             if (!_directories.Contains(normalized) || normalized == "/")
+            {
+                error = "Path not found.";
                 return false;
+            }
 
             var prefix = normalized + "/";
             if (_files.Keys.Any(f => f.StartsWith(prefix, StringComparison.Ordinal)))
+            {
+                error = "Directory is not empty.";
                 return false;
+            }
             if (_directories.Any(d => d != normalized && d.StartsWith(prefix, StringComparison.Ordinal)))
+            {
+                error = "Directory is not empty.";
                 return false;
+            }
 
             _directories.Remove(normalized);
+            error = string.Empty;
             return true;
         }
 
@@ -2175,6 +2519,25 @@ function atmos.regulator_read(label) return h.atmos_regulator_read(label) end
 
         public static HttpResponse OkResult(int status, string body) =>
             new() { Ok = true, Status = status, Body = body, Error = null };
+    }
+
+    private readonly record struct SemVersion(int Major, int Minor, int Patch) : IComparable<SemVersion>
+    {
+        public int CompareTo(SemVersion other)
+        {
+            var major = Major.CompareTo(other.Major);
+            if (major != 0)
+                return major;
+
+            var minor = Minor.CompareTo(other.Minor);
+            if (minor != 0)
+                return minor;
+
+            return Patch.CompareTo(other.Patch);
+        }
+
+        public override string ToString() =>
+            string.Create(CultureInfo.InvariantCulture, $"{Major}.{Minor}.{Patch}");
     }
 }
 

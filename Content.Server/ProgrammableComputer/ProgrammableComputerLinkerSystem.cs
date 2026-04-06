@@ -10,6 +10,8 @@ namespace Content.Server.ProgrammableComputer;
 
 public sealed class ProgrammableComputerLinkerSystem : EntitySystem
 {
+    private const int MaxBufferedDevices = 64;
+
     [Dependency] private readonly SharedPopupSystem _popup = default!;
     [Dependency] private readonly ProgrammableComputerSystem _programmable = default!;
     [Dependency] private readonly StationSystem _station = default!;
@@ -37,7 +39,14 @@ public sealed class ProgrammableComputerLinkerSystem : EntitySystem
         }
 
         if (!_programmable.IsAtmosLinkableDevice(target))
+        {
+            _popup.PopupEntity(
+                Loc.GetString("programmable-computer-linker-invalid-target"),
+                uid,
+                args.User,
+                PopupType.Medium);
             return;
+        }
 
         var targetNet = GetNetEntity(target);
         if (comp.BufferedDevices.Remove(targetNet))
@@ -50,6 +59,16 @@ public sealed class ProgrammableComputerLinkerSystem : EntitySystem
         }
         else
         {
+            if (comp.BufferedDevices.Count >= MaxBufferedDevices)
+            {
+                _popup.PopupEntity(
+                    Loc.GetString("programmable-computer-linker-buffer-full", ("count", MaxBufferedDevices)),
+                    uid,
+                    args.User,
+                    PopupType.Medium);
+                return;
+            }
+
             comp.BufferedDevices.Add(targetNet);
             _popup.PopupEntity(
                 Loc.GetString("programmable-computer-linker-device-buffered", ("device", ToPrettyString(target))),
@@ -75,35 +94,60 @@ public sealed class ProgrammableComputerLinkerSystem : EntitySystem
         }
 
         var added = 0;
-        var skipped = 0;
+        var skippedInvalid = 0;
+        var skippedOutOfRange = 0;
+        var skippedAlreadyLinked = 0;
+        var skippedLimit = 0;
+        var skippedOther = 0;
 
         foreach (var buffered in linker.BufferedDevices)
         {
             var target = GetEntity(buffered);
             if (!Exists(target) || !_programmable.IsAtmosLinkableDevice(target))
             {
-                skipped++;
+                skippedInvalid++;
                 continue;
             }
 
             if (!IsSameGridAndStation(computerUid, target))
             {
-                skipped++;
+                skippedOutOfRange++;
                 continue;
             }
 
-            if (_programmable.TryAddAtmosLinkedDevice(computerUid, target, out _))
+            if (_programmable.TryAddAtmosLinkedDevice(computerUid, target, out _, out var reason))
                 added++;
             else
-                skipped++;
+            {
+                switch (reason)
+                {
+                    case "already-linked":
+                        skippedAlreadyLinked++;
+                        break;
+                    case "link-limit":
+                        skippedLimit++;
+                        break;
+                    default:
+                        skippedOther++;
+                        break;
+                }
+            }
         }
+
+        var skipped = skippedInvalid + skippedOutOfRange + skippedAlreadyLinked + skippedLimit + skippedOther;
 
         linker.BufferedDevices.Clear();
         UpdateUi(linkerUid, linker);
         _programmable.RefreshUi(computerUid);
 
         _popup.PopupEntity(
-            Loc.GetString("programmable-computer-linker-paired-summary", ("added", added), ("skipped", skipped)),
+            Loc.GetString("programmable-computer-linker-paired-summary-detailed",
+                ("added", added),
+                ("skipped", skipped),
+                ("already", skippedAlreadyLinked),
+                ("range", skippedOutOfRange),
+                ("invalid", skippedInvalid),
+                ("limit", skippedLimit)),
             computerUid,
             userUid,
             PopupType.Medium);

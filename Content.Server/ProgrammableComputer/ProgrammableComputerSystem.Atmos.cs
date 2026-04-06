@@ -207,14 +207,26 @@ public sealed partial class ProgrammableComputerSystem
 
     public bool TryAddAtmosLinkedDevice(EntityUid computerUid, EntityUid targetUid, out string assignedLabel)
     {
+        return TryAddAtmosLinkedDevice(computerUid, targetUid, out assignedLabel, out _);
+    }
+
+    public bool TryAddAtmosLinkedDevice(EntityUid computerUid, EntityUid targetUid, out string assignedLabel, out string reason)
+    {
         assignedLabel = string.Empty;
+        reason = string.Empty;
 
         if (!Exists(computerUid) || !Exists(targetUid) || !IsAtmosLinkableDevice(targetUid))
+        {
+            reason = "invalid-target";
             return false;
+        }
 
         var links = EnsureComp<ProgrammableComputerAtmosLinksComponent>(computerUid);
         if (links.Links.Count >= MaxAtmosLinks)
+        {
+            reason = "link-limit";
             return false;
+        }
 
         var targetNet = GetNetEntity(targetUid);
         foreach (var (existingLabel, existingTarget) in links.Links)
@@ -223,6 +235,7 @@ public sealed partial class ProgrammableComputerSystem
                 continue;
 
             assignedLabel = existingLabel;
+            reason = "already-linked";
             return false;
         }
 
@@ -243,7 +256,10 @@ public sealed partial class ProgrammableComputerSystem
             var suffix = $"-{idx++}";
             var maxBaseLength = MaxLabelLength - suffix.Length;
             if (maxBaseLength <= 0)
+            {
+                reason = "label-space-exhausted";
                 return false;
+            }
 
             var trimmedBase = baseLabel.Length > maxBaseLength
                 ? baseLabel[..maxBaseLength]
@@ -254,6 +270,7 @@ public sealed partial class ProgrammableComputerSystem
 
         links.Links[label] = targetNet;
         assignedLabel = label;
+        reason = string.Empty;
         return true;
     }
 

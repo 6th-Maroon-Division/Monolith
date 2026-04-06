@@ -22,6 +22,13 @@ public sealed class ProgrammableComputerRuntimeBootstrapTests
         Assert.That(source, Does.Contain("function atmos.mixer_read(label)"));
         Assert.That(source, Does.Contain("function atmos.regulator(label, params)"));
         Assert.That(source, Does.Contain("function atmos.regulator_read(label)"));
+        Assert.That(source, Does.Contain("h.fs_list_ex"));
+        Assert.That(source, Does.Contain("h.fs_read_ex"));
+        Assert.That(source, Does.Contain("h.fs_write_ex"));
+        Assert.That(source, Does.Contain("h.fs_mkdir_ex"));
+        Assert.That(source, Does.Contain("h.fs_remove_ex"));
+        Assert.That(source, Does.Contain("h.computer_version"));
+        Assert.That(source, Does.Contain("function computer.version()"));
     }
 
     [Test]

@@ -5,6 +5,7 @@ using System.Reflection;
 using Content.Server.ProgrammableComputer;
 using Content.Shared.Containers.ItemSlots;
 using Content.Shared.ProgrammableComputer;
+using MoonSharp.Interpreter;
 using NUnit.Framework;
 using Robust.Server.GameObjects;
 using Robust.Shared.GameObjects;
@@ -84,6 +85,23 @@ internal static class ProgrammableComputerIntegrationTestHelper
     public static string GetTerminalText(ProgrammableComputerBoundUserInterfaceState state)
     {
         return new string(state.TerminalCells.Select(cell => cell.Glyph).ToArray());
+    }
+
+    public static void ExecuteLua(object runtime, string source)
+    {
+        var script = runtime.GetType()
+            .GetField("Script", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+            ?.GetValue(runtime) as Script;
+
+        if (script == null)
+        {
+            var scriptProp = runtime.GetType().GetProperty("Script", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            script = scriptProp?.GetValue(runtime) as Script;
+        }
+
+        Assert.That(script, Is.Not.Null, "Runtime script was not initialized.");
+
+        script!.DoString(source);
     }
 
     public static void InstallRequiredHardware(IServerEntityManager entMan, EntityUid computer)

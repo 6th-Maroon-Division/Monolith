@@ -35,8 +35,11 @@ programmable-computer-devices-label-placeholder = label...
 
 programmable-computer-linker-device-buffered = Buffered {$device}.
 programmable-computer-linker-device-removed = Removed {$device} from buffer.
+programmable-computer-linker-invalid-target = Target is not a linkable atmos device or programmable computer.
+programmable-computer-linker-buffer-full = Buffer is full ({$count} devices). Link to a computer or clear the list.
 programmable-computer-linker-no-buffered-devices = No buffered devices. Click atmos devices first.
 programmable-computer-linker-paired-summary = Linked {$added} device(s). Skipped {$skipped}.
+programmable-computer-linker-paired-summary-detailed = Linked {$added}. Skipped {$skipped} (already linked {$already}, out of range/station {$range}, invalid {$invalid}, link limit {$limit}).
 programmable-computer-linker-examine-buffered = Buffered devices: {$count}
 programmable-computer-linker-ui-title = Computer Linker
 programmable-computer-linker-ui-count = Buffered devices: {$count}
