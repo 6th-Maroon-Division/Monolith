@@ -1890,6 +1890,7 @@ function net.receive(handle, timeout) return h.net_receive(handle, timeout) end
 function net.close(handle) return h.net_close(handle) end
 
 package = {}
+local package_receipt_dir = '/packages/.receipts'
 
 local function semver_parts(v)
     local a, b, c = tostring(v or ""):match("^(%d+)%.(%d+)%.(%d+)$")
@@ -1951,6 +1952,100 @@ local function ensure_parent_dir(path)
     return true
 end
 
+local function receipt_path(name)
+    return package_receipt_dir .. '/' .. tostring(name) .. '.txt'
+end
+
+local function package_write_receipt(name, version, files)
+    ensure_parent_dir(receipt_path(name))
+    local lines = { 'version=' .. tostring(version or '') }
+    for i = 1, #files do
+        lines[#lines + 1] = tostring(files[i])
+    end
+    return fs.write(receipt_path(name), table.concat(lines, '\n'))
+end
+
+local function package_read_receipt(name)
+    local path = receipt_path(name)
+    local content = fs.read(path)
+    if content == nil then
+        return nil
+    end
+
+    local info = {
+        name = tostring(name),
+        version = '',
+        files = {},
+        path = path,
+    }
+
+    local first = true
+    for line in tostring(content):gmatch('[^\r\n]+') do
+        if first and line:match('^version=') then
+            info.version = line:sub(9)
+            first = false
+        else
+            if line ~= '' then
+                info.files[#info.files + 1] = line
+            end
+            first = false
+        end
+    end
+
+    return info
+end
+
+local function package_receipt_names()
+    local entries = fs.list(package_receipt_dir)
+    if entries == nil then
+        return {}
+    end
+
+    local names = {}
+    for i = 1, #entries do
+        local entry = tostring(entries[i])
+        local name = entry:match('^(.*)%.txt$')
+        if name and name ~= '' then
+            names[#names + 1] = name
+        end
+    end
+
+    table.sort(names)
+    return names
+end
+
+local function package_file_referenced_elsewhere(filePath, excludingName)
+    local names = package_receipt_names()
+    for i = 1, #names do
+        local name = names[i]
+        if name ~= excludingName then
+            local receipt = package_read_receipt(name)
+            if receipt ~= nil then
+                for j = 1, #receipt.files do
+                    if receipt.files[j] == filePath then
+                        return true
+                    end
+                end
+            end
+        end
+    end
+
+    return false
+end
+
+local function prune_empty_dirs(path)
+    local current = tostring(path or ''):match('^(.*)/[^/]+$')
+    while current and current ~= '' and current ~= '/' do
+        local entries = fs.list(current)
+        if entries == nil or #entries > 0 then
+            break
+        end
+
+        fs.remove(current)
+        current = current:match('^(.*)/[^/]+$')
+    end
+end
+
 function package.list()
     local names, err = h.pkg_list()
     if names == nil then return nil, err end
@@ -1969,6 +2064,22 @@ function package.files(name, version)
     return resolved, files
 end
 
+function package.installed()
+    local names = package_receipt_names()
+    local result = {}
+    for i = 1, #names do
+        local receipt = package_read_receipt(names[i])
+        if receipt ~= nil then
+            result[#result + 1] = {
+                name = receipt.name,
+                version = receipt.version,
+                files = receipt.files,
+            }
+        end
+    end
+    return result
+end
+
 function package.install(name, version, state)
     if type(name) ~= "string" or name == "" then
         return nil, "package name is required"
@@ -1985,6 +2096,19 @@ function package.install(name, version, state)
     end
 
     state.installing[key] = true
+
+    local existing = package_read_receipt(name)
+    if existing ~= nil and (version == nil or existing.version == tostring(version)) then
+        state.installing[key] = nil
+        state.installed[key] = true
+        return {
+            ok = true,
+            name = name,
+            version = existing.version,
+            filesInstalled = 0,
+            alreadyInstalled = true,
+        }
+    end
 
     local resolvedVersion, files, err = package.files(name, version)
     if resolvedVersion == nil then
@@ -2021,6 +2145,7 @@ function package.install(name, version, state)
     end
 
     local count = 0
+    local installedFiles = {}
     for i = 1, #files do
         local relative = tostring(files[i])
         if relative ~= "dependencies.txt" and relative ~= "meta.yml" then
@@ -2039,7 +2164,14 @@ function package.install(name, version, state)
             end
 
             count = count + 1
+            installedFiles[#installedFiles + 1] = target
         end
+    end
+
+    local receiptOk, receiptErr = package_write_receipt(name, resolvedVersion, installedFiles)
+    if receiptOk == nil then
+        state.installing[key] = nil
+        return nil, "failed to write receipt: " .. tostring(receiptErr)
     end
 
     state.installing[key] = nil
@@ -2049,6 +2181,43 @@ function package.install(name, version, state)
         name = name,
         version = resolvedVersion,
         filesInstalled = count,
+    }
+end
+
+function package.remove(name)
+    if type(name) ~= 'string' or name == '' then
+        return nil, 'package name is required'
+    end
+
+    local receipt = package_read_receipt(name)
+    if receipt == nil then
+        return nil, 'package is not installed'
+    end
+
+    local removed = 0
+    for i = #receipt.files, 1, -1 do
+        local path = tostring(receipt.files[i])
+        if not package_file_referenced_elsewhere(path, name) and fs.exists(path) then
+            local ok, err = fs.remove(path)
+            if ok == nil then
+                return nil, 'failed to remove ' .. path .. ': ' .. tostring(err)
+            end
+            removed = removed + 1
+            prune_empty_dirs(path)
+        end
+    end
+
+    local ok, err = fs.remove(receipt.path)
+    if ok == nil then
+        return nil, 'failed to remove receipt: ' .. tostring(err)
+    end
+    prune_empty_dirs(receipt.path)
+
+    return {
+        ok = true,
+        name = receipt.name,
+        version = receipt.version,
+        filesRemoved = removed,
     }
 end
 

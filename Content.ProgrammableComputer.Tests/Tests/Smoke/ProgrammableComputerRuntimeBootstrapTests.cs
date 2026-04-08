@@ -30,6 +30,8 @@ public sealed class ProgrammableComputerRuntimeBootstrapTests
         Assert.That(source, Does.Contain("h.computer_version"));
         Assert.That(source, Does.Contain("function computer.version()"));
         Assert.That(source, Does.Contain("function package.install(name, version, state)"));
+        Assert.That(source, Does.Contain("function package.installed()"));
+        Assert.That(source, Does.Contain("function package.remove(name)"));
         Assert.That(source, Does.Contain("h.pkg_fetch"));
     }
 

@@ -741,6 +741,120 @@ local function expand_history_input(input)
     return input
 end
 
+local function print_package_result(result)
+    if result == nil then
+        return
+    end
+
+    if result.alreadyInstalled then
+        term.writeLine('Already installed: ' .. tostring(result.name) .. ' ' .. tostring(result.version))
+        return
+    end
+
+    if result.filesInstalled ~= nil then
+        term.writeLine('Installed ' .. tostring(result.name) .. ' ' .. tostring(result.version) .. ' (' .. tostring(result.filesInstalled) .. ' files)')
+        return
+    end
+
+    if result.filesRemoved ~= nil then
+        term.writeLine('Removed ' .. tostring(result.name) .. ' ' .. tostring(result.version) .. ' (' .. tostring(result.filesRemoved) .. ' files)')
+        return
+    end
+end
+
+local function handle_package_cli(args)
+    local sub = args[2]
+    if sub == nil or sub == 'help' then
+        term.writeLine('pkg list                 - list available packages')
+        term.writeLine('pkg installed            - list installed packages')
+        term.writeLine('pkg latest <name>        - show latest version')
+        term.writeLine('pkg files <name> [ver]   - list package files')
+        term.writeLine('pkg install <name> [ver] - install package')
+        term.writeLine('pkg remove <name>        - remove installed package')
+        term.writeLine('apt ...                  - alias for pkg')
+        return
+    end
+
+    if sub == 'list' then
+        local names, err = package.list()
+        if names == nil then
+            term.writeLine('pkg list failed: ' .. tostring(err))
+            return
+        end
+
+        for i = 1, #names do
+            term.writeLine(tostring(names[i]))
+        end
+        return
+    end
+
+    if sub == 'installed' then
+        local installed = package.installed()
+        if #installed == 0 then
+            term.writeLine('No packages installed.')
+            return
+        end
+
+        for i = 1, #installed do
+            local item = installed[i]
+            term.writeLine(tostring(item.name) .. ' ' .. tostring(item.version))
+        end
+        return
+    end
+
+    local name = args[3]
+    if name == nil then
+        term.writeLine('Usage: pkg ' .. tostring(sub) .. ' <name> [version]')
+        return
+    end
+
+    if sub == 'latest' then
+        local version, err = package.latest(name)
+        if version == nil then
+            term.writeLine('pkg latest failed: ' .. tostring(err))
+            return
+        end
+        term.writeLine(tostring(name) .. ' ' .. tostring(version))
+        return
+    end
+
+    if sub == 'files' then
+        local version, files, err = package.files(name, args[4])
+        if version == nil then
+            term.writeLine('pkg files failed: ' .. tostring(err))
+            return
+        end
+
+        term.writeLine(tostring(name) .. ' ' .. tostring(version))
+        for i = 1, #files do
+            term.writeLine('  ' .. tostring(files[i]))
+        end
+        return
+    end
+
+    if sub == 'install' then
+        local result, err = package.install(name, args[4])
+        if result == nil then
+            term.writeLine('pkg install failed: ' .. tostring(err))
+            return
+        end
+        print_package_result(result)
+        return
+    end
+
+    if sub == 'remove' then
+        local result, err = package.remove(name)
+        if result == nil then
+            term.writeLine('pkg remove failed: ' .. tostring(err))
+            return
+        end
+        print_package_result(result)
+        return
+    end
+
+    term.writeLine('Unknown pkg command: ' .. tostring(sub))
+end
+
 local function execute_shell_command(input)
     local args = split_shell_args(input)
     if #args == 0 then
@@ -765,6 +879,8 @@ local function execute_shell_command(input)
         term.writeLine('echo <text...>    - print text ($PWD/$HOME supported)')
         term.writeLine('history           - show command history')
         term.writeLine('!!                - run previous command')
+        term.writeLine('pkg <subcommand>  - package manager CLI')
+        term.writeLine('apt <subcommand>  - alias for pkg')
         term.writeLine('termdebug         - run terminal debug demo')
         term.writeLine('pumptest          - enable all linked pumps')
         term.writeLine('lua               - open Lua REPL terminal')
@@ -867,6 +983,8 @@ local function execute_shell_command(input)
         for i = 1, #shell_history do
             term.writeLine(tostring(i) .. '  ' .. shell_history[i])
         end
+    elseif cmd == 'pkg' or cmd == 'apt' then
+        handle_package_cli(args)
     elseif cmd == 'lua' and #args == 1 then
         draw_repl()
     elseif cmd == 'lua' and #args > 1 then
