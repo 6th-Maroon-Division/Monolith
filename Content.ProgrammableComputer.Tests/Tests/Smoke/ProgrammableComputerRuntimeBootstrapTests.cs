@@ -34,7 +34,31 @@ public sealed class ProgrammableComputerRuntimeBootstrapTests
         Assert.That(source, Does.Contain("function package.install(name, version, state)"));
         Assert.That(source, Does.Contain("function package.installed()"));
         Assert.That(source, Does.Contain("function package.remove(name)"));
+        Assert.That(source, Does.Contain("function net.peer.id()"));
+        Assert.That(source, Does.Contain("function net.peer.send(target, payload)"));
+        Assert.That(source, Does.Contain("function net.relay.listen(relay, protocol, port, leaseSeconds)"));
+        Assert.That(source, Does.Contain("function net.relay.open(relay, target, protocol, port)"));
+        Assert.That(source, Does.Contain("relay_not_available"));
         Assert.That(source, Does.Contain("h.pkg_fetch"));
+    }
+
+    [Test]
+    public void RelayPrototype_IsDefinedAndTagged()
+    {
+        var prototypeSource = ProgrammableComputerLuaTestHelper.ReadRepoFile("Resources/Prototypes/Entities/Structures/Machines/Computers/computers.yml");
+
+        Assert.That(prototypeSource, Does.Contain("id: ComputerProgrammableRelay"));
+        Assert.That(prototypeSource, Does.Contain("- type: ProgrammableComputerRelay"));
+    }
+
+    [Test]
+    public void RelayOwnershipAndConflictMarkers_Present()
+    {
+        var source = ProgrammableComputerLuaTestHelper.ReadRepoFile("Content.Server/ProgrammableComputer/ProgrammableComputerSystem.cs");
+
+        Assert.That(source, Does.Contain("ReleaseComputerNetworkOwnership(uid);"));
+        Assert.That(source, Does.Contain("port_in_use"));
+        Assert.That(source, Does.Contain("relay_not_available"));
     }
 
     [Test]

@@ -32,6 +32,14 @@ public sealed partial class ProgrammableComputerSystem : EntitySystem
     private const int ComputerPlatformAbiMajor = 1;
     private const int ComputerPlatformAbiMinor = 0;
     private const int MinRuntimeRamKiB = 64;
+    private const int PeerPayloadMaxBytes = 8 * 1024;
+    private const int PeerInboxMaxMessages = 128;
+    private const int RelayHopLimit = 8;
+    private const int RelaySessionIdleTimeoutSeconds = 60;
+    private const int RelaySessionHardTtlSeconds = 5 * 60;
+    private const int RelayMaxListenersPerComputer = 16;
+    private const int RelayMaxSessionsPerListener = 64;
+    private const int RelayRateLimitPerMinute = 600;
     private const string RuntimePackageName = "monolith-runtime";
     private const int RuntimePackageAbiMajor = ComputerPlatformAbiMajor;
     private static readonly Uri RuntimePackageIndexUrl = new("https://raw.githubusercontent.com/6th-Maroon-Division/monolith-programmable-packages/main/index/index.json");
@@ -74,6 +82,12 @@ public sealed partial class ProgrammableComputerSystem : EntitySystem
     [Dependency] private readonly UserInterfaceSystem _ui = default!;
 
     private readonly Dictionary<EntityUid, ComputerRuntime> _runtimes = new();
+    private readonly Dictionary<EntityUid, string> _deviceIds = new();
+    private readonly Dictionary<string, EntityUid> _uidByDeviceId = new(StringComparer.Ordinal);
+    private readonly Dictionary<EntityUid, string> _hostnames = new();
+    private readonly Dictionary<string, RelayListenerBinding> _relayBindings = new(StringComparer.Ordinal);
+    private readonly Dictionary<int, RelaySession> _relaySessions = new();
+    private int _nextRelaySessionId = 1;
     private Dictionary<string, string>? _cachedRemoteRuntimeFiles;
     private string? _cachedRemoteRuntimeVersion;
     private string? _cachedPackageIndexJson;
@@ -99,6 +113,7 @@ public sealed partial class ProgrammableComputerSystem : EntitySystem
     public override void Update(float frameTime)
     {
         var now = _timing.CurTime;
+        ProcessRelayState(now);
 
         foreach (var (uid, runtime) in _runtimes)
         {
@@ -130,6 +145,8 @@ public sealed partial class ProgrammableComputerSystem : EntitySystem
 
     private void OnComponentShutdown(EntityUid uid, ProgrammableComputerComponent component, ComponentShutdown args)
     {
+        ReleaseComputerNetworkOwnership(uid);
+
         if (!_runtimes.Remove(uid, out var runtime))
             return;
 
@@ -968,6 +985,7 @@ public sealed partial class ProgrammableComputerSystem : EntitySystem
 
     private void ShutdownRuntime(EntityUid uid, ProgrammableComputerComponent component, ComputerRuntime runtime, string message)
     {
+        ReleaseComputerNetworkOwnership(uid);
         runtime.IsRunning = false;
         runtime.IsBooting = false;
         runtime.IsPoweredOn = false;
@@ -1054,9 +1072,13 @@ public sealed partial class ProgrammableComputerSystem : EntitySystem
     private ComputerRuntime EnsureRuntime(EntityUid uid)
     {
         if (_runtimes.TryGetValue(uid, out var existing))
+        {
+            EnsureComputerIdentity(uid);
             return existing;
+        }
 
         var runtime = CreateRuntime(uid);
+        EnsureComputerIdentity(uid);
         _runtimes[uid] = runtime;
         return runtime;
     }
@@ -1589,6 +1611,312 @@ public sealed partial class ProgrammableComputerSystem : EntitySystem
             return DynValue.NewBoolean(true);
         }, "net_close"));
 
+        hostTable.Set("peer_id", DynValue.NewCallback((ctx, args) =>
+        {
+            EnsureComputerIdentity(uid);
+            return DynValue.NewString(_deviceIds[uid]);
+        }, "peer_id"));
+
+        hostTable.Set("peer_hostname", DynValue.NewCallback((ctx, args) =>
+        {
+            EnsureComputerIdentity(uid);
+            return DynValue.NewString(_hostnames[uid]);
+        }, "peer_hostname"));
+
+        hostTable.Set("peer_set_hostname", DynValue.NewCallback((ctx, args) =>
+        {
+            if (args.Count == 0)
+                return DynValue.NewTuple(DynValue.Nil, DynValue.NewString("hostname_invalid"));
+
+            var ok = TrySetHostname(uid, ToDynString(args[0]), out var error);
+            return ok
+                ? DynValue.NewTuple(DynValue.NewBoolean(true), DynValue.Nil)
+                : DynValue.NewTuple(DynValue.Nil, DynValue.NewString(error));
+        }, "peer_set_hostname"));
+
+        hostTable.Set("peer_list", DynValue.NewCallback((ctx, args) =>
+        {
+            EnsureComputerIdentity(uid);
+            var table = new Table(script);
+            var senderGrid = TryGetGridUid(uid);
+            var index = 1;
+            foreach (var (otherUid, otherRuntime) in _runtimes)
+            {
+                if (!otherRuntime.IsPoweredOn)
+                    continue;
+
+                if (TryGetGridUid(otherUid) != senderGrid)
+                    continue;
+
+                EnsureComputerIdentity(otherUid);
+                var row = new Table(script);
+                row.Set("id", DynValue.NewString(_deviceIds[otherUid]));
+                row.Set("hostname", DynValue.NewString(_hostnames[otherUid]));
+                table.Set(index++, DynValue.NewTable(row));
+            }
+
+            return DynValue.NewTable(table);
+        }, "peer_list"));
+
+        hostTable.Set("peer_send", DynValue.NewCallback((ctx, args) =>
+        {
+            if (args.Count < 2)
+                return DynValue.NewTuple(DynValue.Nil, DynValue.NewString("target_not_found"));
+
+            var target = ToDynString(args[0]);
+            var payload = ToDynString(args[1]);
+            if (Encoding.UTF8.GetByteCount(payload) > PeerPayloadMaxBytes)
+                return DynValue.NewTuple(DynValue.Nil, DynValue.NewString("payload_too_large"));
+
+            if (!TryResolveComputerTarget(uid, target, true, out var toUid, out var resolveError))
+                return DynValue.NewTuple(DynValue.Nil, DynValue.NewString(resolveError));
+
+            EnsureComputerIdentity(uid);
+            var msg = new PeerMessage(_deviceIds[uid], _hostnames[uid], payload, "peer", null);
+            if (!TryEnqueuePeerMessage(toUid, msg, out var queueError))
+                return DynValue.NewTuple(DynValue.Nil, DynValue.NewString(queueError));
+
+            return DynValue.NewTuple(DynValue.NewBoolean(true), DynValue.Nil);
+        }, "peer_send"));
+
+        hostTable.Set("peer_receive", DynValue.NewCallback((ctx, args) =>
+        {
+            if (runtime.PeerInbox.Count == 0)
+                return DynValue.Nil;
+
+            var message = runtime.PeerInbox.Dequeue();
+            var row = new Table(script);
+            row.Set("fromId", DynValue.NewString(message.FromId));
+            row.Set("fromHostname", DynValue.NewString(message.FromHostname));
+            row.Set("payload", DynValue.NewString(message.Payload));
+            row.Set("kind", DynValue.NewString(message.Kind));
+            row.Set("session", message.Session == null ? DynValue.Nil : DynValue.NewString(message.Session));
+            return DynValue.NewTable(row);
+        }, "peer_receive"));
+
+        hostTable.Set("relay_listen", DynValue.NewCallback((ctx, args) =>
+        {
+            if (args.Count < 3)
+                return DynValue.NewTuple(DynValue.Nil, DynValue.NewString("invalid_listener"));
+
+            if (!TryTakeRelayToken(runtime))
+                return DynValue.NewTuple(DynValue.Nil, DynValue.NewString("rate_limited"));
+
+            var relayTarget = ToDynString(args[0]);
+            var protocol = string.IsNullOrWhiteSpace(ToDynString(args[1])) ? "msg" : ToDynString(args[1]).ToLowerInvariant();
+            var port = (int)args[2].Number;
+            var leaseSeconds = args.Count > 3 && args[3].Type != DataType.Nil ? (int)args[3].Number : 0;
+
+            if (!TryResolveComputerTarget(uid, relayTarget, false, out var relayUid, out var relayError))
+                return DynValue.NewTuple(DynValue.Nil, DynValue.NewString(relayError));
+
+            if (!TryComp<ProgrammableComputerRelayComponent>(relayUid, out _))
+                return DynValue.NewTuple(DynValue.Nil, DynValue.NewString("relay_not_available"));
+
+            if (TryGetGridUid(relayUid) != TryGetGridUid(uid))
+                return DynValue.NewTuple(DynValue.Nil, DynValue.NewString("wrong_scope"));
+
+            EnsureComputerIdentity(uid);
+            var key = RelayBindingKey(relayUid, protocol, port);
+
+            var ownedCount = _relayBindings.Values.Count(v => v.OwnerUid == uid);
+            if (!_relayBindings.ContainsKey(key) && ownedCount >= RelayMaxListenersPerComputer)
+                return DynValue.NewTuple(DynValue.Nil, DynValue.NewString("listener_limit"));
+
+            if (_relayBindings.TryGetValue(key, out var existing) && existing.OwnerUid != uid)
+                return DynValue.NewTuple(DynValue.Nil, DynValue.NewString("port_in_use"));
+
+            var binding = new RelayListenerBinding
+            {
+                RelayUid = relayUid,
+                OwnerUid = uid,
+                OwnerDeviceId = _deviceIds[uid],
+                Protocol = protocol,
+                Port = port,
+                LeaseExpiresAt = leaseSeconds > 0 ? DateTimeOffset.UtcNow.AddSeconds(leaseSeconds) : null,
+            };
+            _relayBindings[key] = binding;
+
+            return DynValue.NewTuple(DynValue.NewBoolean(true), DynValue.Nil);
+        }, "relay_listen"));
+
+        hostTable.Set("relay_unlisten", DynValue.NewCallback((ctx, args) =>
+        {
+            if (args.Count < 3)
+                return DynValue.NewTuple(DynValue.Nil, DynValue.NewString("invalid_listener"));
+
+            var relayTarget = ToDynString(args[0]);
+            var protocol = string.IsNullOrWhiteSpace(ToDynString(args[1])) ? "msg" : ToDynString(args[1]).ToLowerInvariant();
+            var port = (int)args[2].Number;
+            if (!TryResolveComputerTarget(uid, relayTarget, false, out var relayUid, out var relayError))
+                return DynValue.NewTuple(DynValue.Nil, DynValue.NewString(relayError));
+
+            if (!TryComp<ProgrammableComputerRelayComponent>(relayUid, out _))
+                return DynValue.NewTuple(DynValue.Nil, DynValue.NewString("relay_not_available"));
+
+            var key = RelayBindingKey(relayUid, protocol, port);
+            if (!_relayBindings.TryGetValue(key, out var binding))
+                return DynValue.NewTuple(DynValue.Nil, DynValue.NewString("target_not_found"));
+
+            if (binding.OwnerUid != uid)
+                return DynValue.NewTuple(DynValue.Nil, DynValue.NewString("port_in_use"));
+
+            _relayBindings.Remove(key);
+            return DynValue.NewTuple(DynValue.NewBoolean(true), DynValue.Nil);
+        }, "relay_unlisten"));
+
+        hostTable.Set("relay_open", DynValue.NewCallback((ctx, args) =>
+        {
+            if (args.Count < 4)
+                return DynValue.NewTuple(DynValue.Nil, DynValue.NewString("target_not_found"));
+
+            if (!TryTakeRelayToken(runtime))
+                return DynValue.NewTuple(DynValue.Nil, DynValue.NewString("rate_limited"));
+
+            var relayTarget = ToDynString(args[0]);
+            var target = ToDynString(args[1]);
+            var protocol = string.IsNullOrWhiteSpace(ToDynString(args[2])) ? "msg" : ToDynString(args[2]).ToLowerInvariant();
+            var port = (int)args[3].Number;
+
+            if (!TryResolveComputerTarget(uid, relayTarget, false, out var relayUid, out var relayError))
+                return DynValue.NewTuple(DynValue.Nil, DynValue.NewString(relayError));
+
+            if (!TryComp<ProgrammableComputerRelayComponent>(relayUid, out _))
+                return DynValue.NewTuple(DynValue.Nil, DynValue.NewString("relay_not_available"));
+
+            if (TryGetGridUid(relayUid) != TryGetGridUid(uid))
+                return DynValue.NewTuple(DynValue.Nil, DynValue.NewString("wrong_scope"));
+
+            if (!TryResolveComputerTarget(relayUid, target, false, out var _, out var targetError))
+                return DynValue.NewTuple(DynValue.Nil, DynValue.NewString(targetError));
+
+            var key = RelayBindingKey(relayUid, protocol, port);
+            if (!_relayBindings.TryGetValue(key, out var binding))
+                return DynValue.NewTuple(DynValue.Nil, DynValue.NewString("target_not_found"));
+
+            if (!IsComputerOnline(binding.OwnerUid))
+            {
+                _relayBindings.Remove(key);
+                return DynValue.NewTuple(DynValue.Nil, DynValue.NewString("target_offline"));
+            }
+
+            var listenerSessions = _relaySessions.Values.Count(s => !s.Closed && s.RelayUid == relayUid && s.Protocol == protocol && s.Port == port);
+            if (listenerSessions >= RelayMaxSessionsPerListener)
+                return DynValue.NewTuple(DynValue.Nil, DynValue.NewString("queue_full"));
+
+            EnsureComputerIdentity(uid);
+            EnsureComputerIdentity(binding.OwnerUid);
+            var sessionId = _nextRelaySessionId++;
+            var session = new RelaySession
+            {
+                Id = sessionId,
+                Port = port,
+                Protocol = protocol,
+                RelayUid = relayUid,
+                ClientUid = uid,
+                ServerUid = binding.OwnerUid,
+                TraceId = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture),
+                CreatedAt = DateTimeOffset.UtcNow,
+                LastActivityAt = DateTimeOffset.UtcNow,
+            };
+            _relaySessions[sessionId] = session;
+
+            if (_runtimes.TryGetValue(binding.OwnerUid, out var serverRuntime))
+            {
+                serverRuntime.PendingRelaySessions.Enqueue(sessionId);
+            }
+
+            var clientHandle = runtime.AddRelayHandle(sessionId);
+            return DynValue.NewTuple(DynValue.NewNumber(clientHandle), DynValue.Nil);
+        }, "relay_open"));
+
+        hostTable.Set("relay_accept", DynValue.NewCallback((ctx, args) =>
+        {
+            while (runtime.PendingRelaySessions.Count > 0)
+            {
+                var sessionId = runtime.PendingRelaySessions.Dequeue();
+                if (!_relaySessions.TryGetValue(sessionId, out var session) || session.Closed || session.ServerUid != uid)
+                    continue;
+
+                var handle = runtime.AddRelayHandle(sessionId);
+                return DynValue.NewTuple(DynValue.NewNumber(handle), DynValue.Nil);
+            }
+
+            return DynValue.NewTuple(DynValue.Nil, DynValue.NewString("no_pending"));
+        }, "relay_accept"));
+
+        hostTable.Set("relay_send", DynValue.NewCallback((ctx, args) =>
+        {
+            if (args.Count < 2)
+                return DynValue.NewTuple(DynValue.Nil, DynValue.NewString("invalid_handle"));
+
+            if (!TryTakeRelayToken(runtime))
+                return DynValue.NewTuple(DynValue.Nil, DynValue.NewString("rate_limited"));
+
+            var handle = (int)args[0].Number;
+            var payload = ToDynString(args[1]);
+            if (Encoding.UTF8.GetByteCount(payload) > PeerPayloadMaxBytes)
+                return DynValue.NewTuple(DynValue.Nil, DynValue.NewString("payload_too_large"));
+
+            if (!runtime.RelayHandles.TryGetValue(handle, out var sessionId) || !_relaySessions.TryGetValue(sessionId, out var session) || session.Closed)
+                return DynValue.NewTuple(DynValue.Nil, DynValue.NewString("invalid_handle"));
+
+            EnsureComputerIdentity(uid);
+            var message = new PeerMessage(_deviceIds[uid], _hostnames[uid], payload, "relay", sessionId.ToString(CultureInfo.InvariantCulture));
+            if (session.ClientUid == uid)
+                session.ServerInbox.Enqueue(message);
+            else if (session.ServerUid == uid)
+                session.ClientInbox.Enqueue(message);
+            else
+                return DynValue.NewTuple(DynValue.Nil, DynValue.NewString("invalid_handle"));
+
+            session.LastActivityAt = DateTimeOffset.UtcNow;
+            return DynValue.NewTuple(DynValue.NewBoolean(true), DynValue.Nil);
+        }, "relay_send"));
+
+        hostTable.Set("relay_receive", DynValue.NewCallback((ctx, args) =>
+        {
+            if (args.Count == 0)
+                return DynValue.Nil;
+
+            var handle = (int)args[0].Number;
+            if (!runtime.RelayHandles.TryGetValue(handle, out var sessionId) || !_relaySessions.TryGetValue(sessionId, out var session) || session.Closed)
+                return DynValue.Nil;
+
+            Queue<PeerMessage>? inbox = null;
+            if (session.ClientUid == uid)
+                inbox = session.ClientInbox;
+            else if (session.ServerUid == uid)
+                inbox = session.ServerInbox;
+
+            if (inbox == null || inbox.Count == 0)
+                return DynValue.Nil;
+
+            var message = inbox.Dequeue();
+            session.LastActivityAt = DateTimeOffset.UtcNow;
+            var row = new Table(script);
+            row.Set("fromId", DynValue.NewString(message.FromId));
+            row.Set("fromHostname", DynValue.NewString(message.FromHostname));
+            row.Set("payload", DynValue.NewString(message.Payload));
+            row.Set("kind", DynValue.NewString(message.Kind));
+            row.Set("session", DynValue.NewString(message.Session ?? string.Empty));
+            return DynValue.NewTable(row);
+        }, "relay_receive"));
+
+        hostTable.Set("relay_close", DynValue.NewCallback((ctx, args) =>
+        {
+            if (args.Count == 0)
+                return DynValue.NewTuple(DynValue.NewBoolean(true), DynValue.Nil);
+
+            var handle = (int)args[0].Number;
+            if (!runtime.RelayHandles.TryGetValue(handle, out var sessionId))
+                return DynValue.NewTuple(DynValue.Nil, DynValue.NewString("invalid_handle"));
+
+            runtime.RelayHandles.Remove(handle);
+            CloseRelaySession(sessionId);
+            return DynValue.NewTuple(DynValue.NewBoolean(true), DynValue.Nil);
+        }, "relay_close"));
+
         // Package manager API
         hostTable.Set("pkg_list", DynValue.NewCallback((ctx, args) =>
         {
@@ -1888,6 +2216,59 @@ function net.ws(url) return h.net_ws(url) end
 function net.send(handle, payload) return h.net_send(handle, payload) end
 function net.receive(handle, timeout) return h.net_receive(handle, timeout) end
 function net.close(handle) return h.net_close(handle) end
+
+net.peer = {}
+function net.peer.id() return h.peer_id() end
+function net.peer.hostname() return h.peer_hostname() end
+function net.peer.setHostname(name)
+    local ok, err = h.peer_set_hostname(name)
+    if ok == nil then return nil, err end
+    return true
+end
+function net.peer.list() return h.peer_list() end
+function net.peer.send(target, payload)
+    local ok, err = h.peer_send(target, payload)
+    if ok == nil then return nil, err end
+    return true
+end
+function net.peer.receive(timeout)
+    return h.peer_receive(timeout)
+end
+
+net.relay = {}
+function net.relay.listen(relay, protocol, port, leaseSeconds)
+    local ok, err = h.relay_listen(relay, protocol, port, leaseSeconds)
+    if ok == nil then return nil, err end
+    return true
+end
+function net.relay.unlisten(relay, protocol, port)
+    local ok, err = h.relay_unlisten(relay, protocol, port)
+    if ok == nil then return nil, err end
+    return true
+end
+function net.relay.open(relay, target, protocol, port)
+    local handle, err = h.relay_open(relay, target, protocol, port)
+    if handle == nil then return nil, err end
+    return handle
+end
+function net.relay.accept(timeout)
+    local handle, err = h.relay_accept(timeout)
+    if handle == nil then return nil, err end
+    return handle
+end
+function net.relay.send(handle, payload)
+    local ok, err = h.relay_send(handle, payload)
+    if ok == nil then return nil, err end
+    return true
+end
+function net.relay.receive(handle, timeout)
+    return h.relay_receive(handle, timeout)
+end
+function net.relay.close(handle)
+    local ok, err = h.relay_close(handle)
+    if ok == nil then return nil, err end
+    return true
+end
 
 package = {}
 local package_receipt_dir = '/packages/.receipts'
@@ -2815,6 +3196,285 @@ function atmos.regulator_read(label) return h.atmos_regulator_read(label) end
         return true;
     }
 
+    // ─── Local peer + relay networking ─────────────────────────────────────
+
+    private void EnsureComputerIdentity(EntityUid uid)
+    {
+        if (!_deviceIds.ContainsKey(uid))
+        {
+            var id = ("pc-" + Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture)[..16]).ToLowerInvariant();
+            _deviceIds[uid] = id;
+            _uidByDeviceId[id] = uid;
+        }
+
+        if (_hostnames.ContainsKey(uid))
+            return;
+
+        _hostnames[uid] = MakeUniqueHostname(uid, $"pc-{uid}");
+    }
+
+    private static string NormalizeHostname(string hostname)
+    {
+        var normalized = hostname.Trim().ToLowerInvariant();
+        var sb = new StringBuilder(normalized.Length);
+        foreach (var ch in normalized)
+        {
+            if ((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') || ch == '-')
+                sb.Append(ch);
+        }
+
+        var text = sb.ToString();
+        if (text.Length > 32)
+            text = text[..32];
+        return text;
+    }
+
+    private EntityUid? TryGetGridUid(EntityUid uid)
+    {
+        if (!EntityManager.EntityExists(uid))
+            return null;
+
+        return Transform(uid).GridUid;
+    }
+
+    private string MakeUniqueHostname(EntityUid uid, string candidate)
+    {
+        var baseName = NormalizeHostname(candidate);
+        if (baseName.Length < 3 || baseName[0] < 'a' || baseName[0] > 'z')
+            baseName = "pc" + uid;
+
+        var grid = TryGetGridUid(uid);
+        var current = baseName;
+        var suffix = 2;
+        while (HostnameExistsOnGrid(uid, current, grid))
+            current = $"{baseName}-{suffix++}";
+
+        return current;
+    }
+
+    private bool HostnameExistsOnGrid(EntityUid requester, string hostname, EntityUid? grid)
+    {
+        foreach (var (otherUid, otherHostname) in _hostnames)
+        {
+            if (otherUid == requester)
+                continue;
+
+            if (!string.Equals(otherHostname, hostname, StringComparison.Ordinal))
+                continue;
+
+            if (TryGetGridUid(otherUid) == grid)
+                return true;
+        }
+
+        return false;
+    }
+
+    private bool TrySetHostname(EntityUid uid, string requested, out string error)
+    {
+        EnsureComputerIdentity(uid);
+        var normalized = NormalizeHostname(requested);
+        if (normalized.Length < 3)
+        {
+            error = "hostname_too_short";
+            return false;
+        }
+
+        if (normalized[0] < 'a' || normalized[0] > 'z')
+        {
+            error = "hostname_invalid";
+            return false;
+        }
+
+        if (HostnameExistsOnGrid(uid, normalized, TryGetGridUid(uid)))
+        {
+            error = "hostname_taken";
+            return false;
+        }
+
+        _hostnames[uid] = normalized;
+        error = string.Empty;
+        return true;
+    }
+
+    private string RelayBindingKey(EntityUid relayUid, string protocol, int port)
+    {
+        return $"{relayUid}:{protocol.ToLowerInvariant()}:{port}";
+    }
+
+    private bool IsComputerOnline(EntityUid uid)
+    {
+        return _runtimes.TryGetValue(uid, out var runtime) && runtime.IsPoweredOn;
+    }
+
+    private bool TryResolveComputerTarget(EntityUid senderUid, string target, bool sameGridOnly, out EntityUid resolvedUid, out string error)
+    {
+        resolvedUid = default;
+        error = string.Empty;
+        EnsureComputerIdentity(senderUid);
+
+        var lookup = target.Trim();
+        if (lookup.Length == 0)
+        {
+            error = "target_not_found";
+            return false;
+        }
+
+        if (lookup.StartsWith("pc-", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!_uidByDeviceId.TryGetValue(lookup.ToLowerInvariant(), out resolvedUid))
+            {
+                error = "target_not_found";
+                return false;
+            }
+
+            if (!IsComputerOnline(resolvedUid))
+            {
+                error = "target_offline";
+                return false;
+            }
+
+            if (sameGridOnly && TryGetGridUid(resolvedUid) != TryGetGridUid(senderUid))
+            {
+                error = "wrong_scope";
+                return false;
+            }
+
+            return true;
+        }
+
+        var hostname = NormalizeHostname(lookup);
+        EntityUid? candidate = null;
+        foreach (var (uid, name) in _hostnames)
+        {
+            if (!string.Equals(name, hostname, StringComparison.Ordinal))
+                continue;
+
+            if (!IsComputerOnline(uid))
+                continue;
+
+            if (sameGridOnly && TryGetGridUid(uid) != TryGetGridUid(senderUid))
+                continue;
+
+            if (candidate != null)
+            {
+                error = "ambiguous_hostname";
+                return false;
+            }
+
+            candidate = uid;
+        }
+
+        if (candidate == null)
+        {
+            error = "target_not_found";
+            return false;
+        }
+
+        resolvedUid = candidate.Value;
+        return true;
+    }
+
+    private bool TryEnqueuePeerMessage(EntityUid toUid, PeerMessage message, out string error)
+    {
+        error = string.Empty;
+        if (!_runtimes.TryGetValue(toUid, out var runtime) || !runtime.IsPoweredOn)
+        {
+            error = "target_offline";
+            return false;
+        }
+
+        if (runtime.PeerInbox.Count >= PeerInboxMaxMessages)
+        {
+            error = "queue_full";
+            return false;
+        }
+
+        runtime.PeerInbox.Enqueue(message);
+        return true;
+    }
+
+    private bool TryTakeRelayToken(ComputerRuntime runtime)
+    {
+        var now = DateTimeOffset.UtcNow;
+        while (runtime.RelayWindow.Count > 0 && (now - runtime.RelayWindow.Peek()).TotalMinutes >= 1)
+            runtime.RelayWindow.Dequeue();
+
+        if (runtime.RelayWindow.Count >= RelayRateLimitPerMinute)
+            return false;
+
+        runtime.RelayWindow.Enqueue(now);
+        return true;
+    }
+
+    private void ProcessRelayState(TimeSpan now)
+    {
+        var nowUtc = DateTimeOffset.UtcNow;
+
+        var expiredBindings = _relayBindings
+            .Where(pair => pair.Value.LeaseExpiresAt != null && pair.Value.LeaseExpiresAt <= nowUtc)
+            .Select(pair => pair.Key)
+            .ToList();
+        foreach (var key in expiredBindings)
+            _relayBindings.Remove(key);
+
+        var expiredSessions = _relaySessions
+            .Where(pair => pair.Value.Closed
+                           || pair.Value.CreatedAt.AddSeconds(RelaySessionHardTtlSeconds) <= nowUtc
+                           || pair.Value.LastActivityAt.AddSeconds(RelaySessionIdleTimeoutSeconds) <= nowUtc)
+            .Select(pair => pair.Key)
+            .ToList();
+
+        foreach (var sessionId in expiredSessions)
+            CloseRelaySession(sessionId);
+    }
+
+    private void CloseRelaySession(int sessionId)
+    {
+        if (!_relaySessions.Remove(sessionId, out var session))
+            return;
+
+        session.Closed = true;
+        if (_runtimes.TryGetValue(session.ClientUid, out var clientRuntime))
+        {
+            var toRemove = clientRuntime.RelayHandles.Where(p => p.Value == sessionId).Select(p => p.Key).ToArray();
+            foreach (var key in toRemove)
+                clientRuntime.RelayHandles.Remove(key);
+        }
+
+        if (_runtimes.TryGetValue(session.ServerUid, out var serverRuntime))
+        {
+            var toRemove = serverRuntime.RelayHandles.Where(p => p.Value == sessionId).Select(p => p.Key).ToArray();
+            foreach (var key in toRemove)
+                serverRuntime.RelayHandles.Remove(key);
+        }
+    }
+
+    private void ReleaseComputerNetworkOwnership(EntityUid uid)
+    {
+        if (_runtimes.TryGetValue(uid, out var runtime))
+        {
+            runtime.PeerInbox.Clear();
+            runtime.PendingRelaySessions.Clear();
+            runtime.RelayHandles.Clear();
+        }
+
+        var ownedBindings = _relayBindings
+            .Where(pair => pair.Value.OwnerUid == uid || pair.Value.RelayUid == uid)
+            .Select(pair => pair.Key)
+            .ToList();
+
+        foreach (var key in ownedBindings)
+            _relayBindings.Remove(key);
+
+        var relatedSessions = _relaySessions
+            .Where(pair => pair.Value.ClientUid == uid || pair.Value.ServerUid == uid || pair.Value.RelayUid == uid)
+            .Select(pair => pair.Key)
+            .ToList();
+
+        foreach (var sessionId in relatedSessions)
+            CloseRelaySession(sessionId);
+    }
+
     // ─── Hardware / capabilities ─────────────────────────────────────────────
 
     private ComputerCapabilities GetCapabilities(EntityUid uid)
@@ -2922,6 +3582,39 @@ function atmos.regulator_read(label) return h.atmos_regulator_read(label) end
         public static LuaEventArg FromBoolean(bool value) => new(LuaEventArgKind.Boolean, null, 0, value);
     }
 
+    private readonly record struct PeerMessage(
+        string FromId,
+        string FromHostname,
+        string Payload,
+        string Kind,
+        string? Session);
+
+    private sealed class RelayListenerBinding
+    {
+        public required EntityUid RelayUid;
+        public required EntityUid OwnerUid;
+        public required string OwnerDeviceId;
+        public required string Protocol;
+        public required int Port;
+        public DateTimeOffset? LeaseExpiresAt;
+    }
+
+    private sealed class RelaySession
+    {
+        public required int Id;
+        public required int Port;
+        public required string Protocol;
+        public required EntityUid RelayUid;
+        public required EntityUid ClientUid;
+        public required EntityUid ServerUid;
+        public required string TraceId;
+        public DateTimeOffset CreatedAt;
+        public DateTimeOffset LastActivityAt;
+        public bool Closed;
+        public Queue<PeerMessage> ClientInbox { get; } = new();
+        public Queue<PeerMessage> ServerInbox { get; } = new();
+    }
+
     private struct ComputerCapabilities
     {
         public int CpuTier;
@@ -2946,6 +3639,11 @@ function atmos.regulator_read(label) return h.atmos_regulator_read(label) end
         public VirtualFileSystem FileSystem { get; } = new();
         public Dictionary<int, ClientWebSocket> WebSockets { get; } = new();
         public Queue<DateTimeOffset> RequestWindow { get; } = new();
+        public Queue<DateTimeOffset> RelayWindow { get; } = new();
+        public Queue<PeerMessage> PeerInbox { get; } = new();
+        public Dictionary<int, int> RelayHandles { get; } = new();
+        public Queue<int> PendingRelaySessions { get; } = new();
+        public int NextRelayHandle { get; private set; } = 1;
         public int NextSocketHandle { get; private set; } = 1;
         public TerminalBuffer Terminal { get; set; } = new();
         public DateTimeOffset StartedAt { get; set; } = DateTimeOffset.UtcNow;
@@ -2963,6 +3661,13 @@ function atmos.regulator_read(label) return h.atmos_regulator_read(label) end
         {
             var handle = NextSocketHandle++;
             WebSockets[handle] = socket;
+            return handle;
+        }
+
+        public int AddRelayHandle(int sessionId)
+        {
+            var handle = NextRelayHandle++;
+            RelayHandles[handle] = sessionId;
             return handle;
         }
 

@@ -389,6 +389,14 @@
   - type: RadarConsole
   - type: PointLight
     radius: 1.5
+
+- type: entity
+  parent: ComputerProgrammable
+  id: ComputerProgrammableRelay
+  name: programmable relay computer
+  description: A programmable computer configured to act as a cross-grid relay.
+  components:
+  - type: ProgrammableComputerRelay
     energy: 1.6
     color: "#43ccb5"
   - type: Computer

@@ -915,6 +915,215 @@ local function handle_package_cli(args)
     term.writeLine('Unknown pkg command: ' .. tostring(sub))
 end
 
+local function handle_peer_cli(args)
+    local sub = args[2]
+    if sub == nil or sub == 'help' then
+        term.writeLine('peer id                  - show canonical peer id')
+        term.writeLine('peer hostname            - show current hostname')
+        term.writeLine('peer set-hostname <name> - set hostname on current grid')
+        term.writeLine('peer list                - list peers on the same grid')
+        term.writeLine('peer send <target> <msg> - send message to peer')
+        term.writeLine('peer recv                - read one queued message')
+        return
+    end
+
+    if sub == 'id' then
+        term.writeLine(tostring(net.peer.id()))
+        return
+    end
+
+    if sub == 'hostname' then
+        term.writeLine(tostring(net.peer.hostname()))
+        return
+    end
+
+    if sub == 'set-hostname' then
+        local name = args[3]
+        if name == nil then
+            term.writeLine('Usage: peer set-hostname <name>')
+            return
+        end
+
+        local ok, err = net.peer.setHostname(name)
+        if ok == nil then
+            term.writeLine('peer set-hostname failed: ' .. tostring(err))
+            return
+        end
+
+        term.writeLine('Hostname set to ' .. tostring(net.peer.hostname()))
+        return
+    end
+
+    if sub == 'list' then
+        local peers = net.peer.list()
+        for i = 1, #peers do
+            local peer = peers[i]
+            term.writeLine(tostring(peer.hostname) .. ' [' .. tostring(peer.id) .. ']')
+        end
+        return
+    end
+
+    if sub == 'send' then
+        local target = args[3]
+        if target == nil then
+            term.writeLine('Usage: peer send <target> <message>')
+            return
+        end
+
+        local chunks = {}
+        for i = 4, #args do
+            chunks[#chunks + 1] = args[i]
+        end
+        local payload = table.concat(chunks, ' ')
+
+        local ok, err = net.peer.send(target, payload)
+        if ok == nil then
+            term.writeLine('peer send failed: ' .. tostring(err))
+            return
+        end
+        term.writeLine('peer message sent')
+        return
+    end
+
+    if sub == 'recv' then
+        local msg = net.peer.receive(0)
+        if msg == nil then
+            term.writeLine('No peer messages.')
+            return
+        end
+
+        term.writeLine('From ' .. tostring(msg.fromHostname) .. ' [' .. tostring(msg.fromId) .. ']')
+        term.writeLine(tostring(msg.payload))
+        return
+    end
+
+    term.writeLine('Unknown peer command: ' .. tostring(sub))
+end
+
+local function handle_relay_cli(args)
+    local sub = args[2]
+    if sub == nil or sub == 'help' then
+        term.writeLine('relay listen <relay> <protocol> <port> [leaseSec]')
+        term.writeLine('relay unlisten <relay> <protocol> <port>')
+        term.writeLine('relay open <relay> <target> <protocol> <port>')
+        term.writeLine('relay accept              - accept pending inbound session')
+        term.writeLine('relay send <handle> <msg> - send over relay session')
+        term.writeLine('relay recv <handle>       - receive relay session message')
+        term.writeLine('relay close <handle>      - close relay session')
+        return
+    end
+
+    if sub == 'listen' then
+        if args[3] == nil or args[4] == nil or args[5] == nil then
+            term.writeLine('Usage: relay listen <relay> <protocol> <port> [leaseSec]')
+            return
+        end
+
+        local ok, err = net.relay.listen(args[3], args[4], tonumber(args[5]), tonumber(args[6]))
+        if ok == nil then
+            term.writeLine('relay listen failed: ' .. tostring(err))
+            return
+        end
+        term.writeLine('relay listener registered')
+        return
+    end
+
+    if sub == 'unlisten' then
+        if args[3] == nil or args[4] == nil or args[5] == nil then
+            term.writeLine('Usage: relay unlisten <relay> <protocol> <port>')
+            return
+        end
+
+        local ok, err = net.relay.unlisten(args[3], args[4], tonumber(args[5]))
+        if ok == nil then
+            term.writeLine('relay unlisten failed: ' .. tostring(err))
+            return
+        end
+        term.writeLine('relay listener removed')
+        return
+    end
+
+    if sub == 'open' then
+        if args[3] == nil or args[4] == nil or args[5] == nil or args[6] == nil then
+            term.writeLine('Usage: relay open <relay> <target> <protocol> <port>')
+            return
+        end
+
+        local handle, err = net.relay.open(args[3], args[4], args[5], tonumber(args[6]))
+        if handle == nil then
+            term.writeLine('relay open failed: ' .. tostring(err))
+            return
+        end
+        term.writeLine('relay handle: ' .. tostring(handle))
+        return
+    end
+
+    if sub == 'accept' then
+        local handle, err = net.relay.accept(0)
+        if handle == nil then
+            term.writeLine('relay accept: ' .. tostring(err))
+            return
+        end
+        term.writeLine('accepted relay handle: ' .. tostring(handle))
+        return
+    end
+
+    if sub == 'send' then
+        if args[3] == nil then
+            term.writeLine('Usage: relay send <handle> <message>')
+            return
+        end
+
+        local chunks = {}
+        for i = 4, #args do
+            chunks[#chunks + 1] = args[i]
+        end
+        local payload = table.concat(chunks, ' ')
+
+        local ok, err = net.relay.send(tonumber(args[3]), payload)
+        if ok == nil then
+            term.writeLine('relay send failed: ' .. tostring(err))
+            return
+        end
+        term.writeLine('relay message sent')
+        return
+    end
+
+    if sub == 'recv' then
+        if args[3] == nil then
+            term.writeLine('Usage: relay recv <handle>')
+            return
+        end
+
+        local msg = net.relay.receive(tonumber(args[3]), 0)
+        if msg == nil then
+            term.writeLine('No relay messages.')
+            return
+        end
+
+        term.writeLine('From ' .. tostring(msg.fromHostname) .. ' [' .. tostring(msg.fromId) .. ']')
+        term.writeLine(tostring(msg.payload))
+        return
+    end
+
+    if sub == 'close' then
+        if args[3] == nil then
+            term.writeLine('Usage: relay close <handle>')
+            return
+        end
+
+        local ok, err = net.relay.close(tonumber(args[3]))
+        if ok == nil then
+            term.writeLine('relay close failed: ' .. tostring(err))
+            return
+        end
+        term.writeLine('relay handle closed')
+        return
+    end
+
+    term.writeLine('Unknown relay command: ' .. tostring(sub))
+end
+
 local function execute_shell_command(input)
     local args = split_shell_args(input)
     if #args == 0 then
@@ -939,6 +1148,8 @@ local function execute_shell_command(input)
         term.writeLine('echo <text...>    - print text ($PWD/$HOME supported)')
         term.writeLine('history           - show command history')
         term.writeLine('!!                - run previous command')
+        term.writeLine('peer <subcommand> - local peer networking CLI')
+        term.writeLine('relay <subcommand> - relay networking CLI')
         term.writeLine('pkg <subcommand>  - package manager CLI')
         term.writeLine('apt <subcommand>  - alias for pkg')
         term.writeLine('termdebug         - run terminal debug demo')
@@ -1045,6 +1256,10 @@ local function execute_shell_command(input)
         end
     elseif cmd == 'pkg' or cmd == 'apt' then
         handle_package_cli(args)
+    elseif cmd == 'peer' then
+        handle_peer_cli(args)
+    elseif cmd == 'relay' then
+        handle_relay_cli(args)
     elseif cmd == 'lua' and #args == 1 then
         draw_repl()
     elseif cmd == 'lua' and #args > 1 then
