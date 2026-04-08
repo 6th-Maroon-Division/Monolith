@@ -758,6 +758,12 @@ local function print_package_result(result)
 
     if result.filesRemoved ~= nil then
         term.writeLine('Removed ' .. tostring(result.name) .. ' ' .. tostring(result.version) .. ' (' .. tostring(result.filesRemoved) .. ' files)')
+        if result.packagesRemoved ~= nil and #result.packagesRemoved > 1 then
+            term.writeLine('Also removed unused dependencies:')
+            for i = 2, #result.packagesRemoved do
+                term.writeLine('  ' .. tostring(result.packagesRemoved[i]))
+            end
+        end
         return
     end
 end
@@ -766,8 +772,10 @@ local function handle_package_cli(args)
     local sub = args[2]
     if sub == nil or sub == 'help' then
         term.writeLine('pkg list                 - list available packages')
+        term.writeLine('pkg search [term]        - search packages by name')
         term.writeLine('pkg installed            - list installed packages')
         term.writeLine('pkg latest <name>        - show latest version')
+        term.writeLine('pkg show <name> [ver]    - show package details')
         term.writeLine('pkg files <name> [ver]   - list package files')
         term.writeLine('pkg install <name> [ver] - install package')
         term.writeLine('pkg remove <name>        - remove installed package')
@@ -779,6 +787,24 @@ local function handle_package_cli(args)
         local names, err = package.list()
         if names == nil then
             term.writeLine('pkg list failed: ' .. tostring(err))
+            return
+        end
+
+        for i = 1, #names do
+            term.writeLine(tostring(names[i]))
+        end
+        return
+    end
+
+    if sub == 'search' then
+        local names, err = package.search(args[3])
+        if names == nil then
+            term.writeLine('pkg search failed: ' .. tostring(err))
+            return
+        end
+
+        if #names == 0 then
+            term.writeLine('No matching packages.')
             return
         end
 
@@ -815,6 +841,40 @@ local function handle_package_cli(args)
             return
         end
         term.writeLine(tostring(name) .. ' ' .. tostring(version))
+        return
+    end
+
+    if sub == 'show' then
+        local details, err = package.show(name, args[4])
+        if details == nil then
+            term.writeLine('pkg show failed: ' .. tostring(err))
+            return
+        end
+
+        term.writeLine('Name: ' .. tostring(details.name))
+        term.writeLine('Version: ' .. tostring(details.version) .. ' (latest: ' .. tostring(details.latest) .. ')')
+        if details.minAbi ~= nil or details.maxAbi ~= nil then
+            term.writeLine('ABI: ' .. tostring(details.minAbi or '?') .. ' - ' .. tostring(details.maxAbi or '?'))
+        end
+
+        term.writeLine('Dependencies:')
+        if details.dependencies == nil or #details.dependencies == 0 then
+            term.writeLine('  (none)')
+        else
+            for i = 1, #details.dependencies do
+                local dep = details.dependencies[i]
+                local depText = tostring(dep.name)
+                if dep.minVersion ~= nil and dep.minVersion ~= '' then
+                    depText = depText .. ' >= ' .. tostring(dep.minVersion)
+                end
+                term.writeLine('  ' .. depText)
+            end
+        end
+
+        term.writeLine('Files:')
+        for i = 1, #details.files do
+            term.writeLine('  ' .. tostring(details.files[i]))
+        end
         return
     end
 

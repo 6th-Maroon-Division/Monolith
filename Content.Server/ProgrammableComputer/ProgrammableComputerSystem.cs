@@ -1956,13 +1956,18 @@ local function receipt_path(name)
     return package_receipt_dir .. '/' .. tostring(name) .. '.txt'
 end
 
-local function package_write_receipt(name, version, files)
+local function package_write_receipt(name, version, dependencies, files)
     ensure_parent_dir(receipt_path(name))
     local lines = { 'version=' .. tostring(version or '') }
-    for i = 1, #files do
-        lines[#lines + 1] = tostring(files[i])
+    for i = 1, #(dependencies or {}) do
+        local dep = dependencies[i]
+        lines[#lines + 1] = 'dep=' .. tostring(dep.name) .. '@' .. tostring(dep.version or '')
     end
-    return fs.write(receipt_path(name), table.concat(lines, '\n'))
+    for i = 1, #files do
+        lines[#lines + 1] = 'file=' .. tostring(files[i])
+    end
+    return fs.write(receipt_path(name), table.concat(lines, '
+'))
 end
 
 local function package_read_receipt(name)
@@ -1975,20 +1980,31 @@ local function package_read_receipt(name)
     local info = {
         name = tostring(name),
         version = '',
+        dependencies = {},
         files = {},
         path = path,
     }
 
-    local first = true
-    for line in tostring(content):gmatch('[^\r\n]+') do
-        if first and line:match('^version=') then
+    for line in tostring(content):gmatch('[^
+]+') do
+        if line:match('^version=') then
             info.version = line:sub(9)
-            first = false
-        else
-            if line ~= '' then
-                info.files[#info.files + 1] = line
+        elseif line:match('^dep=') then
+            local value = line:sub(5)
+            local depName, depVersion = value:match('^([^@]+)@?(.*)$')
+            if depName ~= nil and depName ~= '' then
+                info.dependencies[#info.dependencies + 1] = {
+                    name = depName,
+                    version = depVersion or '',
+                }
             end
-            first = false
+        elseif line:match('^file=') then
+            local filePath = line:sub(6)
+            if filePath ~= '' then
+                info.files[#info.files + 1] = filePath
+            end
+        elseif line ~= '' then
+            info.files[#info.files + 1] = line
         end
     end
 
@@ -2033,6 +2049,26 @@ local function package_file_referenced_elsewhere(filePath, excludingName)
     return false
 end
 
+local function package_dependency_used_elsewhere(packageName, excluding)
+    local names = package_receipt_names()
+    for i = 1, #names do
+        local name = names[i]
+        if not (excluding and excluding[name]) then
+            local receipt = package_read_receipt(name)
+            if receipt ~= nil then
+                for j = 1, #receipt.dependencies do
+                    local dep = receipt.dependencies[j]
+                    if dep.name == packageName then
+                        return true, name
+                    end
+                end
+            end
+        end
+    end
+
+    return false, nil
+end
+
 local function prune_empty_dirs(path)
     local current = tostring(path or ''):match('^(.*)/[^/]+$')
     while current and current ~= '' and current ~= '/' do
@@ -2046,10 +2082,38 @@ local function prune_empty_dirs(path)
     end
 end
 
+local function parse_meta_value(metaText, key)
+    for line in tostring(metaText or ''):gmatch('[^
+]+') do
+        local value = line:match('^' .. key .. ':%s*(.+)$')
+        if value ~= nil then
+            return tostring(value):gsub('^"', ''):gsub('"$', ''):gsub("^'", ''):gsub("'$", '')
+        end
+    end
+
+    return nil
+end
+
 function package.list()
     local names, err = h.pkg_list()
     if names == nil then return nil, err end
     return names
+end
+
+function package.search(term)
+    local names, err = package.list()
+    if names == nil then return nil, err end
+
+    local needle = tostring(term or ''):lower()
+    local results = {}
+    for i = 1, #names do
+        local name = tostring(names[i])
+        if needle == '' or name:lower():find(needle, 1, true) then
+            results[#results + 1] = name
+        end
+    end
+
+    return results
 end
 
 function package.latest(name)
@@ -2064,6 +2128,52 @@ function package.files(name, version)
     return resolved, files
 end
 
+function package.show(name, version)
+    if type(name) ~= 'string' or name == '' then
+        return nil, 'package name is required'
+    end
+
+    local resolvedVersion, files, err = package.files(name, version)
+    if resolvedVersion == nil then
+        return nil, err
+    end
+
+    local latest, latestErr = package.latest(name)
+    if latest == nil then
+        latest = resolvedVersion
+    end
+
+    local metaText, metaErr = h.pkg_fetch(name, resolvedVersion, 'meta.yml')
+    if metaText == nil then
+        return nil, 'failed to read meta.yml: ' .. tostring(metaErr)
+    end
+
+    local dependencies = {}
+    local depsText = h.pkg_fetch(name, resolvedVersion, 'dependencies.txt')
+    if depsText ~= nil then
+        for line in tostring(depsText):gmatch('[^
+]+') do
+            local depName, depMinVersion = parse_dependency_line(line)
+            if depName ~= nil then
+                dependencies[#dependencies + 1] = {
+                    name = depName,
+                    minVersion = depMinVersion,
+                }
+            end
+        end
+    end
+
+    return {
+        name = name,
+        version = resolvedVersion,
+        latest = latest,
+        minAbi = tonumber(parse_meta_value(metaText, 'minAbi')),
+        maxAbi = tonumber(parse_meta_value(metaText, 'maxAbi')),
+        dependencies = dependencies,
+        files = files,
+    }
+end
+
 function package.installed()
     local names = package_receipt_names()
     local result = {}
@@ -2073,6 +2183,7 @@ function package.installed()
             result[#result + 1] = {
                 name = receipt.name,
                 version = receipt.version,
+                dependencies = receipt.dependencies,
                 files = receipt.files,
             }
         end
@@ -2116,9 +2227,11 @@ function package.install(name, version, state)
         return nil, err
     end
 
+    local installedDependencies = {}
     local depsText, depsErr = h.pkg_fetch(name, resolvedVersion, "dependencies.txt")
     if depsText ~= nil then
-        for line in tostring(depsText):gmatch("[^\r\n]+") do
+        for line in tostring(depsText):gmatch("[^
+]+") do
             local depName, depMinVersion = parse_dependency_line(line)
             if depName then
                 local depVersion, depErr = package.latest(depName)
@@ -2132,11 +2245,16 @@ function package.install(name, version, state)
                     return nil, "dependency " .. depName .. " requires >= " .. depMinVersion .. " but latest is " .. depVersion
                 end
 
-                local ok, depInstallErr = package.install(depName, depVersion, state)
-                if not ok then
+                local depResult, depInstallErr = package.install(depName, depVersion, state)
+                if not depResult then
                     state.installing[key] = nil
                     return nil, depInstallErr
                 end
+
+                installedDependencies[#installedDependencies + 1] = {
+                    name = depName,
+                    version = depResult.version or depVersion,
+                }
             end
         end
     elseif depsErr ~= nil and tostring(depsErr) ~= "" then
@@ -2168,7 +2286,7 @@ function package.install(name, version, state)
         end
     end
 
-    local receiptOk, receiptErr = package_write_receipt(name, resolvedVersion, installedFiles)
+    local receiptOk, receiptErr = package_write_receipt(name, resolvedVersion, installedDependencies, installedFiles)
     if receiptOk == nil then
         state.installing[key] = nil
         return nil, "failed to write receipt: " .. tostring(receiptErr)
@@ -2181,18 +2299,51 @@ function package.install(name, version, state)
         name = name,
         version = resolvedVersion,
         filesInstalled = count,
+        dependenciesInstalled = #installedDependencies,
+        dependencies = installedDependencies,
     }
 end
 
-function package.remove(name)
-    if type(name) ~= 'string' or name == '' then
-        return nil, 'package name is required'
+local function package_remove_internal(name, state, isDependency)
+    if state.removed[name] then
+        return {
+            ok = true,
+            name = name,
+            version = '',
+            filesRemoved = 0,
+            packagesRemoved = {},
+        }
+    end
+
+    if state.removing[name] then
+        return nil, 'dependency cycle detected while removing ' .. tostring(name)
     end
 
     local receipt = package_read_receipt(name)
     if receipt == nil then
+        if isDependency then
+            return {
+                ok = true,
+                name = name,
+                version = '',
+                filesRemoved = 0,
+                packagesRemoved = {},
+            }
+        end
         return nil, 'package is not installed'
     end
+
+    local excluded = { [name] = true }
+    for removingName, _ in pairs(state.removing) do
+        excluded[removingName] = true
+    end
+
+    local inUse, owner = package_dependency_used_elsewhere(name, excluded)
+    if inUse then
+        return nil, 'package is required by ' .. tostring(owner)
+    end
+
+    state.removing[name] = true
 
     local removed = 0
     for i = #receipt.files, 1, -1 do
@@ -2200,6 +2351,7 @@ function package.remove(name)
         if not package_file_referenced_elsewhere(path, name) and fs.exists(path) then
             local ok, err = fs.remove(path)
             if ok == nil then
+                state.removing[name] = nil
                 return nil, 'failed to remove ' .. path .. ': ' .. tostring(err)
             end
             removed = removed + 1
@@ -2209,16 +2361,43 @@ function package.remove(name)
 
     local ok, err = fs.remove(receipt.path)
     if ok == nil then
+        state.removing[name] = nil
         return nil, 'failed to remove receipt: ' .. tostring(err)
     end
     prune_empty_dirs(receipt.path)
+
+    state.removing[name] = nil
+    state.removed[name] = true
+
+    local packagesRemoved = { receipt.name }
+    for i = 1, #receipt.dependencies do
+        local dep = receipt.dependencies[i]
+        local depResult, depErr = package_remove_internal(dep.name, state, true)
+        if depResult ~= nil then
+            for j = 1, #(depResult.packagesRemoved or {}) do
+                packagesRemoved[#packagesRemoved + 1] = depResult.packagesRemoved[j]
+            end
+            removed = removed + tonumber(depResult.filesRemoved or 0)
+        elseif depErr == nil or not tostring(depErr):find('package is required by ', 1, true) then
+            return nil, depErr
+        end
+    end
 
     return {
         ok = true,
         name = receipt.name,
         version = receipt.version,
         filesRemoved = removed,
+        packagesRemoved = packagesRemoved,
     }
+end
+
+function package.remove(name)
+    if type(name) ~= 'string' or name == '' then
+        return nil, 'package name is required'
+    end
+
+    return package_remove_internal(name, { removing = {}, removed = {} }, false)
 end
 
 atmos = {}
