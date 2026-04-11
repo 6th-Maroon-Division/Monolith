@@ -38,3 +38,22 @@ Entries:
   id: 3
   time: '2026-04-03T00:57:15.0000000+00:00'
   url: https://github.com/6th-Maroon-Division/Monolith/pull/6
+- author: chilla55
+  changes:
+    - type: Add
+      message: >-
+        Added persistence anchors for shuttle grids, including owner/deed
+        management UI and admin controls.
+    - type: Add
+      message: Added shipyard ship storage, retrieval, and direct-sale support.
+    - type: Tweak
+      message: >-
+        Added ghost warp visibility and shipyard console support for persisted
+        or restored ships.
+    - type: Fix
+      message: >-
+        Fixed shuttle persistence, docking, warp-point, POI spawn safety, and
+        related restore-state edge cases.
+  id: 4
+  time: '2026-04-11T18:35:42.0000000+00:00'
+  url: https://github.com/6th-Maroon-Division/Monolith/pull/7
