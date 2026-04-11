@@ -35,58 +35,77 @@
         </BoxContainer>
             </BoxContainer>
         </PanelContainer>
-        <BoxContainer Orientation="Horizontal">
-            <PanelContainer VerticalExpand="True" HorizontalExpand="True" Margin="0 8 0 2">
-                <PanelContainer.PanelOverride>
-                    <gfx:StyleBoxFlat BorderThickness="2" BorderColor="#333333" BackgroundColor="#141414"/>
-                </PanelContainer.PanelOverride>
-            <controls:StripeBack MinSize="48 48">
-            <LineEdit Name="SearchBar"
-                      PlaceHolder="{Loc 'cargo-console-menu-search-bar-placeholder'}"
-                      Margin="2 2 2 2"
-                      HorizontalExpand="True" />
-            </controls:StripeBack>
-            </PanelContainer>
-        </BoxContainer>
-        <BoxContainer Orientation="Horizontal">
-            <PanelContainer VerticalExpand="True" HorizontalExpand="True" Margin="0 8 0 2">
-                <PanelContainer.PanelOverride>
-                    <gfx:StyleBoxFlat BorderThickness="3" BorderColor="#333333" BackgroundColor="#333333"/>
-                </PanelContainer.PanelOverride>
-                <PanelContainer Margin="1 1 1 1">
-                    <PanelContainer.PanelOverride>
-                        <gfx:StyleBoxFlat BorderThickness="3" BorderColor="#636363" BackgroundColor="#141414"/>
-                    </PanelContainer.PanelOverride>
-                    <BoxContainer Orientation="Horizontal">
-            <OptionButton Name="Categories"
-                          Prefix="{Loc 'shipyard-console-menu-size-label'}"
-                          StyleClasses="ButtonSquare"
-                          Margin="2 2 2 2"
-                          HorizontalExpand="True" />
-            <OptionButton Name="Classes"
-                          Prefix="{Loc 'shipyard-console-menu-class-label'}"
-                          StyleClasses="ButtonSquare"
-                          Margin="2 2 2 2"
-                          HorizontalExpand="True" />
-            <OptionButton Name="Engines"
-                          Prefix="{Loc 'shipyard-console-menu-engine-label'}"
-                          StyleClasses="ButtonSquare"
-                          Margin="2 2 2 2"
-                          HorizontalExpand="True" />
+        <TabContainer HorizontalExpand="True" VerticalExpand="True" SizeFlagsStretchRatio="6">
+            <BoxContainer Name="{Loc 'shipyard-console-tab-market'}" Orientation="Vertical" VerticalExpand="True" HorizontalExpand="True">
+                <BoxContainer Orientation="Horizontal">
+                    <PanelContainer VerticalExpand="True" HorizontalExpand="True" Margin="0 8 0 2">
+                        <PanelContainer.PanelOverride>
+                            <gfx:StyleBoxFlat BorderThickness="2" BorderColor="#333333" BackgroundColor="#141414"/>
+                        </PanelContainer.PanelOverride>
+                    <controls:StripeBack MinSize="48 48">
+                    <LineEdit Name="SearchBar"
+                              PlaceHolder="{Loc 'cargo-console-menu-search-bar-placeholder'}"
+                              Margin="2 2 2 2"
+                              HorizontalExpand="True" />
+                    </controls:StripeBack>
+                    </PanelContainer>
+                </BoxContainer>
+                <BoxContainer Orientation="Horizontal">
+                    <PanelContainer VerticalExpand="True" HorizontalExpand="True" Margin="0 8 0 2">
+                        <PanelContainer.PanelOverride>
+                            <gfx:StyleBoxFlat BorderThickness="3" BorderColor="#333333" BackgroundColor="#333333"/>
+                        </PanelContainer.PanelOverride>
+                        <PanelContainer Margin="1 1 1 1">
+                            <PanelContainer.PanelOverride>
+                                <gfx:StyleBoxFlat BorderThickness="3" BorderColor="#636363" BackgroundColor="#141414"/>
+                            </PanelContainer.PanelOverride>
+                            <BoxContainer Orientation="Horizontal">
+                    <OptionButton Name="Categories"
+                                  Prefix="{Loc 'shipyard-console-menu-size-label'}"
+                                  StyleClasses="ButtonSquare"
+                                  Margin="2 2 2 2"
+                                  HorizontalExpand="True" />
+                    <OptionButton Name="Classes"
+                                  Prefix="{Loc 'shipyard-console-menu-class-label'}"
+                                  StyleClasses="ButtonSquare"
+                                  Margin="2 2 2 2"
+                                  HorizontalExpand="True" />
+                    <OptionButton Name="Engines"
+                                  Prefix="{Loc 'shipyard-console-menu-engine-label'}"
+                                  StyleClasses="ButtonSquare"
+                                  Margin="2 2 2 2"
+                                  HorizontalExpand="True" />
+                            </BoxContainer>
+                        </PanelContainer>
+                    </PanelContainer>
+                </BoxContainer>
+                <ScrollContainer HorizontalExpand="True"
+                                 VerticalExpand="True">
+                    <BoxContainer Name="Vessels"
+                                  Orientation="Vertical"
+                                  HorizontalExpand="True"
+                                  VerticalExpand="True">
+                        <!-- Vessels get added here by code -->
                     </BoxContainer>
-                </PanelContainer>
-            </PanelContainer>
-        </BoxContainer>
-        <ScrollContainer HorizontalExpand="True"
-                         VerticalExpand="True"
-                         SizeFlagsStretchRatio="6">
-            <BoxContainer Name="Vessels"
-                          Orientation="Vertical"
-                          HorizontalExpand="True"
-                          VerticalExpand="True">
-                <!-- Vessels get added here by code -->
+                </ScrollContainer>
             </BoxContainer>
-        </ScrollContainer>
+
+            <BoxContainer Name="{Loc 'shipyard-console-tab-storage'}" Orientation="Vertical" VerticalExpand="True" HorizontalExpand="True" Margin="4 4 4 4">
+                <Label Text="{Loc 'shipyard-console-storage-list-title'}" StyleClasses="LabelKeyText" Margin="0 4 0 4" />
+                <ItemList Name="StoredShipsList" SelectMode="Single" VerticalExpand="True" Margin="0 4 0 4" />
+                <BoxContainer Orientation="Horizontal" Margin="0 4 0 0">
+                    <Button Name="RetrieveStoredShipButton"
+                            Text="{Loc 'shipyard-console-storage-retrieve'}"
+                            HorizontalExpand="True"
+                            Disabled="True" />
+                    <controls:ConfirmButton Name="SellStoredShipButton"
+                            Text="{Loc 'shipyard-console-storage-direct-sell'}"
+                            ConfirmationText="{Loc 'shipyard-console-storage-direct-sell-confirm'}"
+                            HorizontalExpand="True"
+                            Disabled="True" />
+                </BoxContainer>
+            </BoxContainer>
+        </TabContainer>
         <PanelContainer VerticalExpand="True" HorizontalExpand="False" Margin="0 8 0 2">
             <PanelContainer.PanelOverride>
                 <gfx:StyleBoxFlat BorderThickness="3" BorderColor="#333333" BackgroundColor="#333333"/>
@@ -95,25 +114,49 @@
                 <PanelContainer.PanelOverride>
                     <gfx:StyleBoxFlat BorderThickness="3" BorderColor="#636363" BackgroundColor="#141414"/>
                 </PanelContainer.PanelOverride>
-        <GridContainer Columns="4" HorizontalExpand="True" Margin="2 2 2 2">
-            <Button Name="TargetIdButton" Access="Public"
-                    StyleClasses="ButtonSquare"/>
-            <controls:ConfirmButton Name="SellShipButton"
-                Text="Sell"
-                ConfirmationText="{Loc 'shipyard-console-confirm-unassign'}"
-                StyleClasses="ButtonSquare"
-                Disabled="True" />
-            <controls:ConfirmButton Name="UnassignDeedButton"
-                Text="{Loc 'shipyard-console-unassign-deed'}"
-                ConfirmationText="{Loc 'shipyard-console-confirm-unassign'}"
-                StyleClasses="ButtonSquare"
-                Disabled="True" />
-            <BoxContainer Orientation="Vertical">
-                <Label Text="{Loc 'shipyard-console-deed-label'}" />
-                <Label Name="DeedTitle"
-                    Text=""/>
-            </BoxContainer>
-        </GridContainer>
+                <BoxContainer Orientation="Vertical" Margin="2 2 2 2" SeparationOverride="2">
+                    <GridContainer Columns="5" HorizontalExpand="True">
+                        <Button Name="TargetIdButton" Access="Public"
+                                StyleClasses="ButtonSquare"/>
+                        <controls:ConfirmButton Name="SellShipButton"
+                            Text="Sell"
+                            ConfirmationText="{Loc 'shipyard-console-confirm-unassign'}"
+                            StyleClasses="ButtonSquare"
+                            Disabled="True" />
+                        <controls:ConfirmButton Name="StoreShipButton"
+                            Text="{Loc 'shipyard-console-storage-store'}"
+                            ConfirmationText="{Loc 'shipyard-console-storage-store-confirm'}"
+                            StyleClasses="ButtonSquare"
+                            Disabled="True" />
+                        <Button Name="RetrieveShipButton"
+                            Text="{Loc 'shipyard-console-storage-retrieve'}"
+                            StyleClasses="ButtonSquare"
+                            Disabled="True" />
+                        <controls:ConfirmButton Name="UnassignDeedButton"
+                            Text="{Loc 'shipyard-console-unassign-deed'}"
+                            ConfirmationText="{Loc 'shipyard-console-confirm-unassign'}"
+                            StyleClasses="ButtonSquare"
+                            Disabled="True" />
+                    </GridContainer>
+                    <BoxContainer Orientation="Horizontal" Margin="0 2 0 0">
+                        <Label Text="{Loc 'shipyard-console-deed-label'}"
+                               StyleClasses="LabelKeyText"
+                               SetWidth="140" />
+                        <Label Name="DeedTitle"
+                               Text=""
+                               SetWidth="170"
+                               ClipText="True" />
+                          </BoxContainer>
+                          <BoxContainer Orientation="Horizontal" Margin="0 2 0 0">
+                           <Label Text="{Loc 'shipyard-console-storage-label'}"
+                               StyleClasses="LabelKeyText"
+                               SetWidth="140" />
+                           <Label Name="StoredShipValue"
+                               Text="{Loc 'shipyard-console-storage-none-short'}"
+                               SetWidth="170"
+                               ClipText="True" />
+                    </BoxContainer>
+                </BoxContainer>
             </PanelContainer>
         </PanelContainer>
         <BoxContainer Orientation="Horizontal" Margin="0 2 0 2" Name="RenameContainer" Visible="False">

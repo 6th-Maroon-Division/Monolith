@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Robust.Shared.Serialization;
 
 namespace Content.Shared._NF.Shipyard.BUI;
@@ -16,6 +17,11 @@ public sealed class ShipyardConsoleInterfaceState : BoundUserInterfaceState
     public readonly string ShipyardName;
     public readonly bool FreeListings;
     public readonly float SellRate;
+    public readonly string? StoredShipName;
+    public readonly int StoredShipCount;
+    public readonly List<ShipyardStoredShipEntry> StoredShips;
+    public readonly bool CanStoreShip;
+    public readonly bool CanRetrieveShip;
 
     public ShipyardConsoleInterfaceState(
         int balance,
@@ -27,7 +33,12 @@ public sealed class ShipyardConsoleInterfaceState : BoundUserInterfaceState
         (List<string> available, List<string> unavailable) shipyardPrototypes,
         string shipyardName,
         bool freeListings,
-        float sellRate)
+        float sellRate,
+        string? storedShipName,
+        int storedShipCount,
+        List<ShipyardStoredShipEntry> storedShips,
+        bool canStoreShip,
+        bool canRetrieveShip)
     {
         Balance = balance;
         AccessGranted = accessGranted;
@@ -39,5 +50,10 @@ public sealed class ShipyardConsoleInterfaceState : BoundUserInterfaceState
         ShipyardName = shipyardName;
         FreeListings = freeListings;
         SellRate = sellRate;
+        StoredShipName = storedShipName;
+        StoredShipCount = storedShipCount;
+        StoredShips = storedShips;
+        CanStoreShip = canStoreShip;
+        CanRetrieveShip = canRetrieveShip;
     }
 }
