@@ -1,0 +1,23 @@
+# About the PR
+This PR introduces a set of changes to enhance the functionalities of the Monolith project. 
+
+# Why / Balance
+This change is aimed at improving the efficiency and user experience of the application. 
+
+# Media
+![Image Description](link-to-image)
+
+# Requirements
+- Requirement 1  
+- Requirement 2  
+
+# How to test
+1. Step 1  
+2. Step 2  
+
+# Breaking changes
+- Change 1  
+
+# Changelog
+- Updated functionality X.
+- Improved performance for feature Y.
