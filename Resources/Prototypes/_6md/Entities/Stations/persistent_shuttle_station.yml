@@ -1,0 +1,6 @@
+- type: entity
+  id: PersistenceRestoredShuttleStation
+  parent: BaseStation
+  categories: [ HideSpawnMenu ]
+  components:
+  - type: Transform

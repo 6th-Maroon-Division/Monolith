@@ -45,7 +45,7 @@ namespace Content.Shared.PDA
         protected virtual void OnItemInserted(EntityUid uid, PdaComponent pda, EntInsertedIntoContainerMessage args)
         {
             if (args.Container.ID == PdaComponent.PdaIdSlotId)
-                pda.ContainedId = args.Entity;
+                pda.ContainedId = IsValidPdaContainedId(args.Entity) ? args.Entity : null;
 
             UpdatePdaAppearance(uid, pda);
         }
@@ -60,13 +60,21 @@ namespace Content.Shared.PDA
 
         private void OnGetAdditionalAccess(EntityUid uid, PdaComponent component, ref GetAdditionalAccessEvent args)
         {
-            if (component.ContainedId is { } id)
+            if (component.ContainedId is { } id && IsValidPdaContainedId(id))
                 args.Entities.Add(id);
         }
 
         private void UpdatePdaAppearance(EntityUid uid, PdaComponent pda)
         {
+            if (pda.ContainedId is { } contained && !IsValidPdaContainedId(contained))
+                pda.ContainedId = null;
+
             Appearance.SetData(uid, PdaVisuals.IdCardInserted, pda.ContainedId != null);
+        }
+
+        private static bool IsValidPdaContainedId(EntityUid uid)
+        {
+            return uid.IsValid();
         }
     }
 }
