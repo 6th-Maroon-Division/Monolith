@@ -463,6 +463,51 @@ public sealed class ToggleableClothingSystem : EntitySystem
         comp.ClothingContainer = _containerSystem.EnsureContainer<ContainerSlot>(attached, comp.ClothingContainerId);
     }
 
+    private void RebuildAttachedClothingMap(Entity<ToggleableClothingComponent> toggleable)
+    {
+        var comp = toggleable.Comp;
+        comp.ClothingUids.Clear();
+
+        var query = EntityQueryEnumerator<AttachedClothingComponent, ClothingComponent>();
+        while (query.MoveNext(out var uid, out var attached, out var clothing))
+        {
+            if (attached.AttachedUid != toggleable.Owner)
+                continue;
+
+            var slot = GetToggleableClothingSlotName(clothing.Slots);
+            if (slot == null)
+                continue;
+
+            comp.ClothingUids[uid] = slot;
+        }
+    }
+
+    private static string? GetToggleableClothingSlotName(SlotFlags slotFlags)
+    {
+        if (slotFlags.HasFlag(SlotFlags.HEAD))
+            return "head";
+
+        if (slotFlags.HasFlag(SlotFlags.GLOVES))
+            return "gloves";
+
+        if (slotFlags.HasFlag(SlotFlags.OUTERCLOTHING))
+            return "outerClothing";
+
+        if (slotFlags.HasFlag(SlotFlags.FEET))
+            return "shoes";
+
+        if (slotFlags.HasFlag(SlotFlags.MASK))
+            return "mask";
+
+        if (slotFlags.HasFlag(SlotFlags.EYES))
+            return "eyes";
+
+        if (slotFlags.HasFlag(SlotFlags.EARS))
+            return "ears";
+
+        return null;
+    }
+
     /// <summary>
     ///     On map init, either spawn the appropriate entity into the suit slot, or if it already exists, perform some
     ///     sanity checks. Also updates the action icon to show the toggled-entity.
@@ -470,10 +515,16 @@ public sealed class ToggleableClothingSystem : EntitySystem
     private void OnMapInit(Entity<ToggleableClothingComponent> toggleable, ref MapInitEvent args)
     {
         var comp = toggleable.Comp;
+        RebuildAttachedClothingMap(toggleable);
 
         if (comp.Container!.Count != 0)
         {
             DebugTools.Assert(comp.ClothingUids.Count != 0, "Unexpected entity present inside of a toggleable clothing container.");
+
+            if (_actionContainer.EnsureAction(toggleable, ref comp.ActionEntity, out var existingAction, comp.Action))
+                _actionsSystem.SetEntityIcon(comp.ActionEntity.Value, toggleable, existingAction);
+
+            Dirty(toggleable, comp);
             return;
         }
 

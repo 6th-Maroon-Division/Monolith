@@ -37,6 +37,10 @@ public sealed class ShipyardConsoleBoundUserInterface : BoundUserInterface
         _menu.OnClose += Close;
         _menu.OnOrderApproved += ApproveOrder;
         _menu.OnSellShip += SellShip;
+        _menu.OnStoreShip += StoreShip;
+        _menu.OnRetrieveShip += RetrieveShip;
+        _menu.OnRetrieveStoredShip += RetrieveStoredShip;
+        _menu.OnSellStoredShip += SellStoredShip;
         _menu.OnUnassignDeed += UnassignDeed;
         _menu.OnRenameShip += RenameShip;
         _menu.TargetIdButton.OnPressed += _ => SendMessage(new ItemSlotButtonPressedEvent("ShipyardConsole-targetId"));
@@ -91,6 +95,26 @@ public sealed class ShipyardConsoleBoundUserInterface : BoundUserInterface
     {
         //reserved for a sanity check, but im not sure what since we check all the important stuffs on server already
         SendMessage(new ShipyardConsoleSellMessage());
+    }
+
+    private void StoreShip(ButtonEventArgs args)
+    {
+        SendMessage(new ShipyardConsoleStoreMessage());
+    }
+
+    private void RetrieveShip(ButtonEventArgs args)
+    {
+        SendMessage(new ShipyardConsoleRetrieveMessage());
+    }
+
+    private void RetrieveStoredShip(string slotId)
+    {
+        SendMessage(new ShipyardConsoleRetrieveMessage(slotId));
+    }
+
+    private void SellStoredShip(string slotId)
+    {
+        SendMessage(new ShipyardConsoleSellStoredMessage(slotId));
     }
     
     private void UnassignDeed(ButtonEventArgs args)

@@ -81,12 +81,17 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
         SubscribeLocalEvent<ShipyardConsoleComponent, BoundUIOpenedEvent>(OnConsoleUIOpened);
         SubscribeLocalEvent<ShipyardConsoleComponent, ShipyardConsoleSellMessage>(OnSellMessage);
         SubscribeLocalEvent<ShipyardConsoleComponent, ShipyardConsolePurchaseMessage>(OnPurchaseMessage);
+        SubscribeLocalEvent<ShipyardConsoleComponent, ShipyardConsoleStoreMessage>(OnStoreMessage);
+        SubscribeLocalEvent<ShipyardConsoleComponent, ShipyardConsoleRetrieveMessage>(OnRetrieveMessage);
+        SubscribeLocalEvent<ShipyardConsoleComponent, ShipyardConsoleSellStoredMessage>(OnSellStoredMessage);
         SubscribeLocalEvent<ShipyardConsoleComponent, ShipyardConsoleUnassignDeedMessage>(OnUnassignDeedMessage);
         SubscribeLocalEvent<ShipyardConsoleComponent, ShipyardConsoleRenameMessage>(OnRenameMessage);
         SubscribeLocalEvent<ShipyardConsoleComponent, EntInsertedIntoContainerMessage>(OnItemSlotChanged);
         SubscribeLocalEvent<ShipyardConsoleComponent, EntRemovedFromContainerMessage>(OnItemSlotChanged);
         SubscribeLocalEvent<RoundRestartCleanupEvent>(OnRoundRestart);
         SubscribeLocalEvent<StationDeedSpawnerComponent, MapInitEvent>(OnInitDeedSpawner);
+
+        LoadStoredShipManifest();
     }
     public override void Shutdown()
     {
@@ -340,6 +345,34 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
         ShipyardMap = shipyardMap;
 
         _map.SetPaused(ShipyardMap.Value, false);
+    }
+
+    public EntityUid? EnsureRestoredShuttleStation(EntityUid shuttleUid)
+    {
+        if (!HasComp<ShuttleComponent>(shuttleUid))
+            return null;
+
+        if (_station.GetOwningStation(shuttleUid) is { Valid: true } existingStation)
+            return existingStation;
+
+        if (!TryComp<ShuttleDeedComponent>(shuttleUid, out var deed))
+            return null;
+
+        var stationName = GetFullName(deed);
+        if (string.IsNullOrWhiteSpace(stationName))
+            stationName = Name(shuttleUid);
+
+        var stationUid = EntityManager.SpawnEntity("PersistenceRestoredShuttleStation", MapCoordinates.Nullspace);
+        if (!TryComp<StationDataComponent>(stationUid, out _))
+        {
+            Del(stationUid);
+            return null;
+        }
+
+        _metaData.SetEntityName(stationUid, stationName);
+        _station.AddGridToStation(stationUid, shuttleUid, name: stationName);
+
+        return stationUid;
     }
 
     // <summary>

@@ -1,0 +1,18 @@
+- type: entity
+  parent: BaseMachineCircuitboard
+  id: PersistenceAnchorCircuitboard
+  name: persistence anchor machine board
+  description: A machine printed circuit board for a persistence anchor.
+  components:
+  - type: Sprite
+    state: engineering
+  - type: MachineBoard
+    prototype: PersistenceAnchor
+    requirements:
+      Capacitor: 2
+      Manipulator: 1
+    stackRequirements:
+      Steel: 5
+      Glass: 3
+      Plasteel: 3
+      CableHV: 4

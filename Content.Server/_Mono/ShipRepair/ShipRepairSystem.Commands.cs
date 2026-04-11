@@ -61,18 +61,21 @@ public sealed partial class ShipRepairSystem
             {
                 var coords = new EntityCoordinates(uid, spec.LocalPosition);
 
-                var origUid = spec.OriginalEntity == null ? (EntityUid?)null : GetEntity(spec.OriginalEntity.Value);
-                if (origUid != null && !TerminatingOrDeleted(origUid.Value))
+                if (spec.OriginalEntity is { } originalNet && originalNet.IsValid())
                 {
-                    var origXform = Transform(origUid.Value);
-                    // if it's not on another grid just teleport it
-                    if (origXform.Coordinates.TryDistance(EntityManager, coords, out var distance)
-                        && distance > 0.01f
-                    )
-                        // delete it before making replacement, will troll anyone who stole it but this is an admin command and we do not care
-                        QueueDel(origUid);
-                    else
-                        continue; // it's already real and in-place so just move on
+                    var origUid = GetEntity(originalNet);
+                    if (!TerminatingOrDeleted(origUid))
+                    {
+                        var origXform = Transform(origUid);
+                        // if it's not on another grid just teleport it
+                        if (origXform.Coordinates.TryDistance(EntityManager, coords, out var distance)
+                            && distance > 0.01f
+                        )
+                            // delete it before making replacement, will troll anyone who stole it but this is an admin command and we do not care
+                            QueueDel(origUid);
+                        else
+                            continue; // it's already real and in-place so just move on
+                    }
                 }
 
                 var protoId = data.EntityPalette[spec.ProtoIndex];

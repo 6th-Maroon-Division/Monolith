@@ -18,6 +18,10 @@ public sealed partial class ShipyardConsoleMenu : FancyWindow
     [Dependency] private readonly IPrototypeManager _protoManager = default!;
 
     public event Action<ButtonEventArgs>? OnSellShip;
+    public event Action<ButtonEventArgs>? OnStoreShip;
+    public event Action<ButtonEventArgs>? OnRetrieveShip;
+    public event Action<string>? OnRetrieveStoredShip;
+    public event Action<string>? OnSellStoredShip;
     public event Action<ButtonEventArgs>? OnOrderApproved;
     public event Action<ButtonEventArgs>? OnUnassignDeed;
     public event Action<string>? OnRenameShip;
@@ -33,6 +37,8 @@ public sealed partial class ShipyardConsoleMenu : FancyWindow
     private List<string> _lastUnavailableProtos = new();
     private bool _freeListings = false;
     private bool _validId = false;
+    private bool _canRetrieveShip = false;
+    private string? _selectedStoredSlotId;
 
     public ShipyardConsoleMenu(ShipyardConsoleBoundUserInterface owner)
     {
@@ -45,8 +51,72 @@ public sealed partial class ShipyardConsoleMenu : FancyWindow
         Classes.OnItemSelected += OnClassItemSelected;
         Engines.OnItemSelected += OnEngineItemSelected;
         SellShipButton.OnPressed += (args) => { OnSellShip?.Invoke(args); };
+        StoreShipButton.OnPressed += (args) => { OnStoreShip?.Invoke(args); };
+        RetrieveShipButton.OnPressed += (args) => { OnRetrieveShip?.Invoke(args); };
+        RetrieveStoredShipButton.OnPressed += OnRetrieveStoredPressed;
+        SellStoredShipButton.OnPressed += OnSellStoredPressed;
+        StoredShipsList.OnItemSelected += OnStoredShipSelected;
+        StoredShipsList.OnItemDeselected += OnStoredShipDeselected;
         UnassignDeedButton.OnPressed += (args) => { OnUnassignDeed?.Invoke(args); };
         RenameButton.OnPressed += OnRenameButtonPressed;
+    }
+
+    private void OnStoredShipSelected(ItemList.ItemListSelectedEventArgs args)
+    {
+        _selectedStoredSlotId = args.ItemList[args.ItemIndex].Metadata as string;
+        UpdateStoredActionButtons();
+    }
+
+    private void OnStoredShipDeselected(ItemList.ItemListDeselectedEventArgs args)
+    {
+        _selectedStoredSlotId = null;
+        UpdateStoredActionButtons();
+    }
+
+    private void OnRetrieveStoredPressed(ButtonEventArgs args)
+    {
+        if (string.IsNullOrWhiteSpace(_selectedStoredSlotId))
+            return;
+
+        OnRetrieveStoredShip?.Invoke(_selectedStoredSlotId);
+    }
+
+    private void OnSellStoredPressed(ButtonEventArgs args)
+    {
+        if (string.IsNullOrWhiteSpace(_selectedStoredSlotId))
+            return;
+
+        OnSellStoredShip?.Invoke(_selectedStoredSlotId);
+    }
+
+    private void UpdateStoredActionButtons()
+    {
+        var hasSelection = !string.IsNullOrWhiteSpace(_selectedStoredSlotId);
+        RetrieveStoredShipButton.Disabled = !hasSelection || !_canRetrieveShip;
+        SellStoredShipButton.Disabled = !hasSelection;
+    }
+
+    private void PopulateStoredShips(List<ShipyardStoredShipEntry> storedShips)
+    {
+        StoredShipsList.Clear();
+        _selectedStoredSlotId = null;
+
+        foreach (var ship in storedShips)
+        {
+            var sellText = ship.PurchasedWithVoucher
+                ? Loc.GetString("shipyard-console-storage-direct-sell-voucher")
+                : BankSystemExtensions.ToSpesoString(ship.SellValue);
+
+            var item = new ItemList.Item(StoredShipsList)
+            {
+                Metadata = ship.SlotId,
+                Text = $"{ship.ShipName} ({sellText})"
+            };
+
+            StoredShipsList.Add(item);
+        }
+
+        UpdateStoredActionButtons();
     }
 
 
@@ -307,7 +377,10 @@ public sealed partial class ShipyardConsoleMenu : FancyWindow
 
         ShipAppraisalLabel.Text = $"{BankSystemExtensions.ToSpesoString(shipPrice)} ({state.SellRate * 100.0f:F1}%)";
         SellShipButton.Disabled = state.ShipDeedTitle == null;
+        StoreShipButton.Disabled = !state.CanStoreShip;
+        RetrieveShipButton.Disabled = !state.CanRetrieveShip;
         UnassignDeedButton.Disabled = state.ShipDeedTitle == null;
+        _canRetrieveShip = state.CanRetrieveShip;
 
         // Show/hide and enable/disable rename controls based on whether there's a ship deed
         var hasShipDeed = state.ShipDeedTitle != null;
@@ -326,8 +399,23 @@ public sealed partial class ShipyardConsoleMenu : FancyWindow
         {
             DeedTitle.Text = $"None";
         }
+
+        if (state.StoredShipCount <= 0 || string.IsNullOrWhiteSpace(state.StoredShipName))
+        {
+            StoredShipValue.Text = Loc.GetString("shipyard-console-storage-none-short");
+        }
+        else if (state.StoredShipCount == 1)
+        {
+            StoredShipValue.Text = state.StoredShipName;
+        }
+        else
+        {
+            StoredShipValue.Text = Loc.GetString("shipyard-console-storage-multiple", ("ship", state.StoredShipName), ("count", state.StoredShipCount));
+        }
+
         _freeListings = state.FreeListings;
         _validId = state.IsTargetIdPresent;
         PopulateProducts(_lastAvailableProtos, _lastUnavailableProtos, _freeListings, _validId);
+        PopulateStoredShips(state.StoredShips);
     }
 }
