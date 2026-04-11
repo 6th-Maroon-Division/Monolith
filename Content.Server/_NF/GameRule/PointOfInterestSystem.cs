@@ -1,9 +1,12 @@
 using System.Linq;
 using System.Numerics;
+using System;
 using Content.Server._NF.Trade;
 using Content.Server.GameTicking;
 using Content.Server.Maps;
+using Content.Shared.NPC.Systems;
 using Content.Server.Station.Systems;
+using Content.Server.Shuttles.Components;
 using Content.Shared._NF.CCVar;
 using Content.Shared.GameTicking;
 using Robust.Shared.Configuration;
@@ -12,6 +15,7 @@ using Robust.Shared.Prototypes;
 using Robust.Shared.Random;
 using Content.Server._NF.Station.Systems;
 using Robust.Shared.EntitySerialization.Systems;
+using Robust.Server.GameObjects;
 
 namespace Content.Server._NF.GameRule;
 
@@ -21,16 +25,22 @@ namespace Content.Server._NF.GameRule;
 //[Access(typeof(NfAdventureRuleSystem))]
 public sealed class PointOfInterestSystem : EntitySystem
 {
+    private const float HostilePoiPersistenceBubbleRadius = 30000f;
+    private const string PersistenceProtectedFaction = "NanoTrasen";
+
     [Dependency] private readonly IConfigurationManager _cfg = default!;
     [Dependency] private readonly IPrototypeManager _proto = default!;
     [Dependency] private readonly IRobustRandom _random = default!;
     [Dependency] private readonly GameTicker _ticker = default!;
     [Dependency] private readonly MapLoaderSystem _map = default!;
+    [Dependency] private readonly NpcFactionSystem _npcFaction = default!;
     [Dependency] private readonly MetaDataSystem _meta = default!;
     [Dependency] private readonly StationRenameWarpsSystems _renameWarps = default!;
     [Dependency] private readonly StationSystem _station = default!;
+    [Dependency] private readonly TransformSystem _transform = default!;
 
     private List<Vector2> _stationCoords = new();
+    private readonly List<MapCoordinates> _persistenceAnchorCoords = new();
 
     public override void Initialize()
     {
@@ -42,6 +52,7 @@ public sealed class PointOfInterestSystem : EntitySystem
     private void OnRoundRestart(RoundRestartCleanupEvent ev)
     {
         _stationCoords.Clear();
+        _persistenceAnchorCoords.Clear();
     }
 
     private void AddStationCoordsToSet(Vector2 coords)
@@ -51,6 +62,8 @@ public sealed class PointOfInterestSystem : EntitySystem
 
     public void GenerateDepots(MapId mapUid, List<PointOfInterestPrototype> depotPrototypes, out List<EntityUid> depotStations)
     {
+        RefreshPersistenceAnchorCoords(mapUid);
+
         //For depots, we want them to fill a circular type dystance formula to try to keep them as far apart as possible
         //Therefore, we will be taking our range properties and treating them as magnitudes of a direction vector divided
         //by the number of depots set in our corresponding cvar
@@ -102,6 +115,8 @@ public sealed class PointOfInterestSystem : EntitySystem
 
     public void GenerateMarkets(MapId mapUid, List<PointOfInterestPrototype> marketPrototypes, out List<EntityUid> marketStations)
     {
+        RefreshPersistenceAnchorCoords(mapUid);
+
         //For market stations, we are going to allow for a bit of randomness and a different offset configuration. We dont
         //want copies of this one, since these can be more themed and duplicate names, for instance, can make for a less
         //ideal world
@@ -124,7 +139,7 @@ public sealed class PointOfInterestSystem : EntitySystem
             if (marketsAdded >= marketCount)
                 break;
 
-            var offset = GetRandomPOICoord(proto.MinimumDistance, proto.MaximumDistance);
+            var offset = GetRandomPOICoord(mapUid, proto.MinimumDistance, proto.MaximumDistance, ShouldAvoidPersistenceBubble(proto));
 
             if (TrySpawnPoiGrid(mapUid, proto, offset, out var marketUid) && marketUid is { Valid: true } market)
             {
@@ -137,6 +152,8 @@ public sealed class PointOfInterestSystem : EntitySystem
 
     public void GenerateOptionals(MapId mapUid, List<PointOfInterestPrototype> optionalPrototypes, out List<EntityUid> optionalStations)
     {
+        RefreshPersistenceAnchorCoords(mapUid);
+
         //Stations that do not have a defined grouping in their prototype get a default of "Optional" and get put into the
         //generic random rotation of POIs. This should include traditional places like Tinnia's rest, the Science Lab, The Pit,
         //and most RP places. This will essentially put them all into a pool to pull from, and still does not use the RNG function.
@@ -159,7 +176,7 @@ public sealed class PointOfInterestSystem : EntitySystem
             if (optionalsAdded >= optionalCount)
                 break;
 
-            var offset = GetRandomPOICoord(proto.MinimumDistance, proto.MaximumDistance);
+            var offset = GetRandomPOICoord(mapUid, proto.MinimumDistance, proto.MaximumDistance, ShouldAvoidPersistenceBubble(proto));
 
             if (TrySpawnPoiGrid(mapUid, proto, offset, out var optionalUid) && optionalUid is { Valid: true } uid)
             {
@@ -171,6 +188,8 @@ public sealed class PointOfInterestSystem : EntitySystem
 
     public void GenerateRequireds(MapId mapUid, List<PointOfInterestPrototype> requiredPrototypes, out List<EntityUid> requiredStations)
     {
+        RefreshPersistenceAnchorCoords(mapUid);
+
         //Stations are required are ones that are vital to function but otherwise still follow a generic random spawn logic
         //Traditionally these would be stations like Expedition Lodge, NFSD station, Prison/Courthouse POI, etc.
         //There are no limit to these, and any prototype marked alwaysSpawn = true will get pulled out of any list that isnt Markets/Depots
@@ -188,7 +207,7 @@ public sealed class PointOfInterestSystem : EntitySystem
             if (proto.SpawnGamePreset.Length > 0 && !proto.SpawnGamePreset.Contains(currentPreset))
                 continue;
 
-            var offset = GetRandomPOICoord(proto.MinimumDistance, proto.MaximumDistance);
+            var offset = GetRandomPOICoord(mapUid, proto.MinimumDistance, proto.MaximumDistance, ShouldAvoidPersistenceBubble(proto));
 
             if (TrySpawnPoiGrid(mapUid, proto, offset, out var requiredUid) && requiredUid is { Valid: true } uid)
             {
@@ -200,6 +219,8 @@ public sealed class PointOfInterestSystem : EntitySystem
 
     public void GenerateUniques(MapId mapUid, Dictionary<string, List<PointOfInterestPrototype>> uniquePrototypes, out List<EntityUid> uniqueStations)
     {
+        RefreshPersistenceAnchorCoords(mapUid);
+
         //Unique locations are semi-dynamic groupings of POIs that rely each independantly on the SpawnChance per POI prototype
         //Since these are the remainder, and logically must have custom-designated groupings, we can then know to subdivide
         //our random pool into these found groups.
@@ -226,7 +247,7 @@ public sealed class PointOfInterestSystem : EntitySystem
                 var chance = _random.NextFloat(0, 1);
                 if (chance <= proto.SpawnChance)
                 {
-                    var offset = GetRandomPOICoord(proto.MinimumDistance, proto.MaximumDistance);
+                    var offset = GetRandomPOICoord(mapUid, proto.MinimumDistance, proto.MaximumDistance, ShouldAvoidPersistenceBubble(proto));
 
                     if (TrySpawnPoiGrid(mapUid, proto, offset, out var optionalUid) && optionalUid is { Valid: true } uid)
                     {
@@ -271,7 +292,7 @@ public sealed class PointOfInterestSystem : EntitySystem
         return true;
     }
 
-    private Vector2 GetRandomPOICoord(float unscaledMinRange, float unscaledMaxRange)
+    private Vector2 GetRandomPOICoord(MapId mapUid, float unscaledMinRange, float unscaledMaxRange, bool avoidPersistenceBubble)
     {
         int numRetries = int.Max(_cfg.GetCVar(NFCCVars.POIPlacementRetries), 0);
         float minDistance = float.Max(_cfg.GetCVar(NFCCVars.MinPOIDistance), 0); // Constant at the end to avoid NaN weirdness
@@ -289,6 +310,21 @@ public sealed class PointOfInterestSystem : EntitySystem
                 }
             }
 
+            if (positionIsValid && avoidPersistenceBubble)
+            {
+                foreach (var anchor in _persistenceAnchorCoords)
+                {
+                    if (anchor.MapId != mapUid)
+                        continue;
+
+                    if (Vector2.Distance(anchor.Position, coords) < HostilePoiPersistenceBubbleRadius)
+                    {
+                        positionIsValid = false;
+                        break;
+                    }
+                }
+            }
+
             // We have a valid position
             if (positionIsValid)
                 break;
@@ -298,5 +334,35 @@ public sealed class PointOfInterestSystem : EntitySystem
         }
 
         return coords;
+    }
+
+    private void RefreshPersistenceAnchorCoords(MapId mapUid)
+    {
+        _persistenceAnchorCoords.Clear();
+
+        var query = EntityQueryEnumerator<PersistenceAnchorComponent>();
+        while (query.MoveNext(out var anchorUid, out _))
+        {
+            var coords = _transform.GetMapCoordinates(anchorUid);
+            if (coords.MapId != mapUid)
+                continue;
+
+            _persistenceAnchorCoords.Add(coords);
+        }
+    }
+
+    private bool ShouldAvoidPersistenceBubble(PointOfInterestPrototype proto)
+    {
+        if (proto.Faction is { } faction)
+            return _npcFaction.IsFactionHostile(PersistenceProtectedFaction, faction);
+
+        if (proto.FriendlyToFactions.Length > 0)
+        {
+            return !proto.FriendlyToFactions.Any(faction =>
+                string.Equals(faction, PersistenceProtectedFaction, StringComparison.OrdinalIgnoreCase));
+        }
+
+        // Backward compatibility for existing prototypes not yet migrated to faction-based metadata.
+        return proto.Hostile;
     }
 }

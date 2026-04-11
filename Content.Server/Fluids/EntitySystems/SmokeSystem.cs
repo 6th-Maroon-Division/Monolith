@@ -82,6 +82,9 @@ public sealed class SmokeSystem : EntitySystem
 
     private void OnStartCollide(Entity<SmokeComponent> entity, ref StartCollideEvent args)
     {
+        if (TerminatingOrDeleted(args.OtherEntity))
+            return;
+
         if (_smokeAffectedQuery.HasComponent(args.OtherEntity))
             return;
 
@@ -95,6 +98,9 @@ public sealed class SmokeSystem : EntitySystem
 
     private void OnEndCollide(Entity<SmokeComponent> entity, ref EndCollideEvent args)
     {
+        if (TerminatingOrDeleted(args.OtherEntity))
+            return;
+
         // if we are already in smoke, make sure the thing we are exiting is the current smoke we are in.
         if (_smokeAffectedQuery.TryGetComponent(args.OtherEntity, out var smokeAffectedComponent))
         {
@@ -117,6 +123,9 @@ public sealed class SmokeSystem : EntitySystem
 
             if (!_smokeQuery.HasComponent(ent))
                 continue;
+
+            if (TerminatingOrDeleted(args.OtherEntity))
+                return;
 
             smokeAffectedComponent ??= EnsureComp<SmokeAffectedComponent>(args.OtherEntity);
             smokeAffectedComponent.SmokeEntity = ent;

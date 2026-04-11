@@ -326,6 +326,7 @@
     - NFScienceBoardsStatic # Frontier
     - NFServiceBoardsStatic # Frontier
     - NFSalvageBoardsStatic # Frontier
+    - SixMDEngineeringBoards # 6md
     dynamicPacks:
     - MonoEconomyLatheBoards # Mono
     - EngineeringBoards

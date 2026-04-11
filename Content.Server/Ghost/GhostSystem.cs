@@ -8,6 +8,7 @@ using Content.Server.GameTicking;
 using Content.Server.Ghost.Components;
 using Content.Server.Mind;
 using Content.Server.Roles.Jobs;
+using Content.Server.Shuttles.Components;
 using Content.Server.Warps;
 using Content.Shared.Actions;
 using Content.Shared.CCVar;
@@ -314,7 +315,8 @@ namespace Content.Server.Ghost
             {
                 // Add admin ghosts and regular ghosts to the warp list for admin users
                 warps = warps.Concat(GetAdminGhostWarps(entity))
-                            .Concat(GetRegularGhostWarps(entity));
+                            .Concat(GetRegularGhostWarps(entity))
+                            .Concat(GetPersistentShipWarps());
             }
 
             var response = new GhostWarpsResponseEvent(warps.ToList());
@@ -459,6 +461,38 @@ namespace Content.Server.Ghost
                 var playerInfo = $"{Comp<MetaDataComponent>(attached).EntityName} (Ghost)";
 
                 yield return new GhostWarp(GetNetEntity(attached), playerInfo, false);
+            }
+        }
+
+        private IEnumerable<GhostWarp> GetPersistentShipWarps()
+        {
+            var returned = new HashSet<EntityUid>();
+            var gridsWithWarpPoints = new HashSet<EntityUid>();
+
+            var warpQuery = EntityQueryEnumerator<WarpPointComponent, TransformComponent>();
+            while (warpQuery.MoveNext(out _, out _, out var warpXform))
+            {
+                if (warpXform.GridUid is { } warpGrid)
+                    gridsWithWarpPoints.Add(warpGrid);
+            }
+
+            var query = EntityQueryEnumerator<PersistenceAnchorComponent, TransformComponent>();
+
+            while (query.MoveNext(out _, out _, out var xform))
+            {
+                if (xform.GridUid is not { } grid)
+                    continue;
+
+                if (!grid.IsValid() || !Exists(grid) || !HasComp<ShuttleComponent>(grid))
+                    continue;
+
+                if (gridsWithWarpPoints.Contains(grid))
+                    continue;
+
+                if (!returned.Add(grid))
+                    continue;
+
+                yield return new GhostWarp(GetNetEntity(grid), Name(grid), true);
             }
         }
 

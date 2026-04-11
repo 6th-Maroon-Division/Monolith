@@ -137,7 +137,7 @@ namespace Content.Server.Shuttles.Systems
                 DebugTools.Assert(false);
                 Log.Error($"Tried to cleanup {dockAUid} but not docked?");
 
-                dockA.DockedWith = null;
+                ResetDockState(dockA);
                 return;
             }
 
@@ -166,6 +166,13 @@ namespace Content.Server.Shuttles.Systems
             RaiseLocalEvent(msg);
         }
 
+        private void ResetDockState(DockingComponent dock)
+        {
+            dock.DockJoint = null;
+            dock.DockJointId = null;
+            dock.DockedWith = null;
+        }
+
         private void OnStartup(Entity<DockingComponent> entity, ref ComponentStartup args)
         {
             var uid = entity.Owner;
@@ -178,14 +185,30 @@ namespace Content.Server.Shuttles.Systems
             // This little gem is for docking deserialization
             if (component.DockedWith != null)
             {
+                var otherUid = component.DockedWith.Value;
+
+                // Invalid or already-removed reference in restored snapshot.
+                if (!Exists(otherUid) || !TryComp<DockingComponent>(otherUid, out var otherDock))
+                {
+                    Log.Warning($"Clearing invalid dock link on startup: {ToPrettyString(uid)} -> {otherUid}");
+                    ResetDockState(component);
+                    return;
+                }
+
                 // They're still initialising so we'll just wait for both to be ready.
-                if (MetaData(component.DockedWith.Value).EntityLifeStage < EntityLifeStage.Initialized)
+                if (!TryComp<MetaDataComponent>(otherUid, out var meta) ||
+                    meta.EntityLifeStage < EntityLifeStage.Initialized)
                     return;
 
-                var otherDock = EntityManager.GetComponent<DockingComponent>(component.DockedWith.Value);
-                DebugTools.Assert(otherDock.DockedWith != null);
+                if (otherDock.DockedWith == null || otherDock.DockedWith.Value != uid)
+                {
+                    Log.Warning($"Clearing non-reciprocal dock link on startup: {ToPrettyString(uid)} <-> {ToPrettyString(otherUid)}");
+                    ResetDockState(component);
+                    ResetDockState(otherDock);
+                    return;
+                }
 
-                Dock((uid, component), (component.DockedWith.Value, otherDock));
+                Dock((uid, component), (otherUid, otherDock));
                 DebugTools.Assert(component.Docked && otherDock.Docked);
             }
         }
@@ -357,8 +380,15 @@ namespace Content.Server.Shuttles.Systems
             if (dock.Comp.DockedWith == null)
                 return;
 
-            // Check if either shuttle is in FTL before undocking
             var otherDockUid = dock.Comp.DockedWith.Value;
+            if (!Exists(otherDockUid) || !HasComp<DockingComponent>(otherDockUid))
+            {
+                Log.Warning($"Clearing stale dock link on undock: {ToPrettyString(dock.Owner)} -> {otherDockUid}");
+                ResetDockState(dock.Comp);
+                return;
+            }
+
+            // Check if either shuttle is in FTL before undocking
             var shuttleUid = Transform(dock).GridUid;
             var otherShuttleUid = Transform(otherDockUid).GridUid;
 

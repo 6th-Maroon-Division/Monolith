@@ -26,13 +26,16 @@ public sealed class WarpPointSystem : EntitySystem
     // Frontier
     private void OnStartup(EntityUid uid, WarpPointComponent component, ComponentStartup args)
     {
-        if (component.QueryStationName
+        if (!string.IsNullOrWhiteSpace(component.Location))
+            return;
+
+        if ((component.QueryStationName || component.UseStationName)
             && _station.GetOwningStation(uid) is { Valid: true } station
             && TryComp(station, out MetaDataComponent? stationMetadata))
         {
             component.Location = stationMetadata.EntityName;
         }
-        else if (component.QueryGridName
+        else if ((component.QueryGridName || component.UseStationName)
             && TryComp(uid, out TransformComponent? xform)
             && xform.GridUid is { Valid: true } grid
             && TryComp(grid, out MetaDataComponent? gridMetadata))

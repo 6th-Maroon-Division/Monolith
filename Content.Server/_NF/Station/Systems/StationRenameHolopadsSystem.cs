@@ -45,10 +45,13 @@ public sealed class StationRenameHolopadsSystem : EntitySystem
             return;
 
         padStationUid ??= _stationSystem.GetOwningStation(holopad);
-        if (padStationUid == null)
+        if (padStationUid is not { } stationUid || !stationUid.IsValid())
         {
             return;
         }
+
+        if (!TryComp<MetaDataComponent>(stationUid, out var stationMeta))
+            return;
 
         var padName = "";
 
@@ -57,7 +60,7 @@ public sealed class StationRenameHolopadsSystem : EntitySystem
             padName += holopad.Comp.StationNamePrefix + " ";
         }
 
-        padName += Name(padStationUid.Value);
+        padName += stationMeta.EntityName;
 
         if (!string.IsNullOrEmpty(holopad.Comp.StationNameSuffix))
         {
