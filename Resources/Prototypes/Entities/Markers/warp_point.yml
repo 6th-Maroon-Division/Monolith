@@ -4,6 +4,7 @@
   name: warp point
   components:
   - type: WarpPoint
+    location: grid
     useStationName: true # Frontier
   - type: Sprite
     state: pink

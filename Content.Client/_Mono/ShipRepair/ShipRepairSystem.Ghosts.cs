@@ -93,10 +93,13 @@ public sealed partial class ShipRepairSystem : SharedShipRepairSystem
                     // process entity ghosts
                     foreach (var (specId, spec) in chunk.Entities)
                     {
-                        var origUid = spec.OriginalEntity == null ? (EntityUid?)null : GetEntity(spec.OriginalEntity.Value);
-                        // this will get trolled by PVS but hope repairable entities aren't too often on the same grid but at a far position
-                        if (origUid != null && !TerminatingOrDeleted(origUid) && Transform(origUid.Value).GridUid == grid.Owner)
-                            continue;
+                        if (spec.OriginalEntity is { } originalNet && originalNet.IsValid())
+                        {
+                            var origUid = GetEntity(originalNet);
+                            // this will get trolled by PVS but hope repairable entities aren't too often on the same grid but at a far position
+                            if (!TerminatingOrDeleted(origUid) && Transform(origUid).GridUid == grid.Owner)
+                                continue;
+                        }
 
                         var specCoords = new EntityCoordinates(grid, spec.LocalPosition);
                         var specMapPos = _transform.ToMapCoordinates(specCoords);

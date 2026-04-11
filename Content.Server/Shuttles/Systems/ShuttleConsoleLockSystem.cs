@@ -741,6 +741,35 @@ public sealed class ShuttleConsoleLockSystem : SharedShuttleConsoleLockSystem
     }
 
     /// <summary>
+    /// Force-unlocks the grid lock and all shuttle console locks on a grid.
+    /// Used by persistence restore flows.
+    /// </summary>
+    public bool ForceUnlockGrid(EntityUid gridUid)
+    {
+        var changed = false;
+
+        if (TryComp<ShipGridLockComponent>(gridUid, out var gridLock) && gridLock.Locked)
+        {
+            SetGridLockState(gridUid, false, gridLock.ShuttleId);
+            changed = true;
+        }
+
+        var query = EntityQueryEnumerator<ShuttleConsoleLockComponent, TransformComponent>();
+        while (query.MoveNext(out var consoleUid, out var lockComp, out var xform))
+        {
+            if (xform.GridUid != gridUid || !lockComp.Locked)
+                continue;
+
+            lockComp.Locked = false;
+            Dirty(consoleUid, lockComp);
+            UpdateAppearance(consoleUid, lockComp);
+            changed = true;
+        }
+
+        return changed;
+    }
+
+    /// <summary>
     /// Grants guest access to a ship when someone without deed access swipes their ID on an unlocked shuttle console.
     /// </summary>
     public void TryGrantGuestAccess(EntityUid console, EntityUid user, ShuttleConsoleLockComponent lockComp)

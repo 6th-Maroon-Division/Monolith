@@ -1,0 +1,13 @@
+- type: construction
+  name: persistence anchor
+  id: PersistenceAnchorRecipe
+  graph: Machine
+  startNode: start
+  targetNode: machine
+  category: construction-category-machines
+  description: Stores a durable snapshot of the grid it is anchored to.
+  placementMode: SnapgridCenter
+  canBuildInImpassable: false
+  icon:
+    sprite: _Mono/Structures/Machines/persistence_anchor.rsi
+    state: station_anchor

@@ -179,6 +179,9 @@ namespace Content.Server.PDA
             if (!Resolve(uid, ref pda, false))
                 return;
 
+            if (pda.ContainedId is { } containedId && (!containedId.IsValid() || !Exists(containedId) || TerminatingOrDeleted(containedId)))
+                pda.ContainedId = null;
+
             if (!_ui.HasUi(uid, PdaUiKey.Key))
                 return;
 
@@ -196,12 +199,13 @@ namespace Content.Server.PDA
                 return;
 
             var programs = _cartridgeLoader.GetAvailablePrograms(uid, loader);
-            var id = CompOrNull<IdCardComponent>(pda.ContainedId);
+            var contained = pda.ContainedId;
+            var id = CompOrNull<IdCardComponent>(contained);
             var balance = 0; // frontier
             if (actor_uid != null && TryComp<BankAccountComponent>(actor_uid, out var account)) // frontier
                 balance = account.Balance; // frontier
             var ownedShipName = ""; // Frontier
-            if (TryComp<ShuttleDeedComponent>(pda.ContainedId, out var shuttleDeedComp)) // Frontier
+            if (contained != null && TryComp<ShuttleDeedComponent>(contained, out var shuttleDeedComp)) // Frontier
                 ownedShipName = ShipyardSystem.GetFullName(shuttleDeedComp); // Frontier
 
             // Get company information from ID card
@@ -322,7 +326,13 @@ namespace Content.Server.PDA
         private void UpdateStationName(EntityUid uid, PdaComponent pda)
         {
             var station = _station.GetOwningStation(uid);
-            pda.StationName = station is null ? null : Name(station.Value);
+            if (station is not { } stationUid || !stationUid.IsValid() || !Exists(stationUid) || TerminatingOrDeleted(stationUid))
+            {
+                pda.StationName = null;
+                return;
+            }
+
+            pda.StationName = Name(stationUid);
         }
 
         private void UpdateAlertLevel(EntityUid uid, PdaComponent pda)

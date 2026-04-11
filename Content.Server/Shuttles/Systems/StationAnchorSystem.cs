@@ -1,4 +1,4 @@
-﻿using Content.Server.Popups;
+using Content.Server.Popups;
 using Content.Server.Power.EntitySystems;
 using Content.Server.Shuttles.Components;
 using Content.Shared.Construction.Components;
@@ -15,15 +15,15 @@ public sealed class StationAnchorSystem : EntitySystem
     {
         base.Initialize();
         SubscribeLocalEvent<StationAnchorComponent, UnanchorAttemptEvent>(OnUnanchorAttempt);
-        SubscribeLocalEvent<StationAnchorComponent, AnchorStateChangedEvent>(OnAnchorStationChange);
 
         SubscribeLocalEvent<StationAnchorComponent, ChargedMachineActivatedEvent>(OnActivated);
         SubscribeLocalEvent<StationAnchorComponent, ChargedMachineDeactivatedEvent>(OnDeactivated);
 
-        SubscribeLocalEvent<StationAnchorComponent, MapInitEvent>(OnMapInit);
+        SubscribeLocalEvent<StationAnchorComponent, ComponentStartup>(OnStartup);
+        SubscribeLocalEvent<StationAnchorComponent, ComponentShutdown>(OnShutdown);
     }
 
-    private void OnMapInit(Entity<StationAnchorComponent> ent, ref MapInitEvent args)
+    private void OnStartup(Entity<StationAnchorComponent> ent, ref ComponentStartup args)
     {
         if (!ent.Comp.SwitchedOn)
             return;
@@ -41,8 +41,18 @@ public sealed class StationAnchorSystem : EntitySystem
         SetStatus(ent, false);
     }
 
+    private void OnShutdown(Entity<StationAnchorComponent> ent, ref ComponentShutdown args)
+    {
+        // If an anchor is deleted/removed while active, always release shuttle movement.
+        // This prevents ships from remaining disabled after admin deletion.
+        if (!ent.Comp.SwitchedOn)
+            return;
+
+        SetStatus(ent, false);
+    }
+
     /// <summary>
-    /// Prevent unanchoring when anchor is active
+    /// Prevent unanchoring when anchor is active.
     /// </summary>
     private void OnUnanchorAttempt(Entity<StationAnchorComponent> ent, ref UnanchorAttemptEvent args)
     {
@@ -58,12 +68,6 @@ public sealed class StationAnchorSystem : EntitySystem
         args.Cancel();
     }
 
-    private void OnAnchorStationChange(Entity<StationAnchorComponent> ent, ref AnchorStateChangedEvent args)
-    {
-        if (!args.Anchored)
-            SetStatus(ent, false);
-    }
-
     private void SetStatus(Entity<StationAnchorComponent> ent, bool enabled, ShuttleComponent? shuttleComponent = default)
     {
         var transform = Transform(ent);
@@ -72,13 +76,9 @@ public sealed class StationAnchorSystem : EntitySystem
             return;
 
         if (enabled)
-        {
             _shuttleSystem.Disable(grid.Value);
-        }
         else
-        {
             _shuttleSystem.Enable(grid.Value);
-        }
 
         shuttleComponent.Enabled = !enabled;
         ent.Comp.SwitchedOn = enabled;

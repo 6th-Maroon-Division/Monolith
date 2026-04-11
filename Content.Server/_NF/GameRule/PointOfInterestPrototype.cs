@@ -1,4 +1,5 @@
 using Content.Server.GameTicking.Presets;
+using Content.Shared.NPC.Prototypes;
 using Robust.Shared.Prototypes;
 using Robust.Shared.Serialization.TypeSerializers.Implementations.Custom.Prototype.Array;
 using Robust.Shared.Utility;
@@ -87,6 +88,28 @@ public sealed partial class PointOfInterestPrototype : IPrototype, IInheritingPr
     /// </summary>
     [DataField]
     public string SpawnGroup { get; private set; } = "Optional";
+
+    /// <summary>
+    ///     NPC faction identity for this POI.
+    ///     When set, persistence safety uses <c>NpcFactionSystem.IsFactionHostile</c>
+    ///     against the protected faction instead of custom tag comparisons.
+    /// </summary>
+    [DataField]
+    public ProtoId<NpcFactionPrototype>? Faction { get; private set; }
+
+    /// <summary>
+    ///     Factions this POI is friendly to.
+    ///     If set, persistence safety-bubble logic treats the POI as hostile when this does not include the protected faction.
+    /// </summary>
+    [DataField]
+    public string[] FriendlyToFactions { get; private set; } = [];
+
+    /// <summary>
+    ///     If true, this POI is treated as hostile and must avoid persistence-anchor safety bubbles.
+    ///     Legacy/manual override used when <see cref="FriendlyToFactions"/> is not set.
+    /// </summary>
+    [DataField]
+    public bool Hostile { get; private set; } = false;
 
     /// <summary>
     ///     the path to the grid
