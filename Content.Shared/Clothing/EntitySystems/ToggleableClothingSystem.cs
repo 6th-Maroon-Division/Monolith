@@ -480,6 +480,29 @@ public sealed class ToggleableClothingSystem : EntitySystem
 
             comp.ClothingUids[uid] = slot;
         }
+
+        // Fallback: AttachedUid may not be serialized when loading from a persistent ship save.
+        // Rebuild the mapping directly from the container contents in that case.
+        if (comp.ClothingUids.Count == 0 && comp.Container != null)
+        {
+            foreach (var entity in comp.Container.ContainedEntities)
+            {
+                if (!TryComp<AttachedClothingComponent>(entity, out var attachedComp))
+                    continue;
+
+                if (!TryComp<ClothingComponent>(entity, out var clothing))
+                    continue;
+
+                var slot = GetToggleableClothingSlotName(clothing.Slots);
+                if (slot == null)
+                    continue;
+
+                // Fix the missing or stale AttachedUid reference.
+                attachedComp.AttachedUid = toggleable;
+                comp.ClothingUids[entity] = slot;
+                Dirty(entity, attachedComp);
+            }
+        }
     }
 
     private static string? GetToggleableClothingSlotName(SlotFlags slotFlags)
