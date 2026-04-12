@@ -36,6 +36,7 @@ public sealed class ToggleableClothingSystem : EntitySystem
         base.Initialize();
 
         SubscribeLocalEvent<ToggleableClothingComponent, ComponentInit>(OnToggleableInit);
+        SubscribeLocalEvent<ToggleableClothingComponent, ComponentStartup>(OnToggleableStartup);
         SubscribeLocalEvent<ToggleableClothingComponent, MapInitEvent>(OnMapInit);
         SubscribeLocalEvent<ToggleableClothingComponent, ToggleClothingEvent>(OnToggleClothingAction);
         SubscribeLocalEvent<ToggleableClothingComponent, GetItemActionsEvent>(OnGetActions);
@@ -68,7 +69,10 @@ public sealed class ToggleableClothingSystem : EntitySystem
         if (!args.CanAccess || !args.CanInteract || args.Hands == null || comp.ClothingUids.Count == 0 || comp.Container == null)
             return;
 
-        var text = comp.VerbText ?? (comp.ActionEntity == null ? null : Name(comp.ActionEntity.Value));
+        var text = comp.VerbText;
+        if (text == null && EnsureToggleAction(toggleable, comp))
+            text = comp.ActionEntity is { } actionEntity ? Name(actionEntity) : null;
+
         if (text == null)
             return;
 
@@ -443,10 +447,33 @@ public sealed class ToggleableClothingSystem : EntitySystem
     {
         var comp = toggleable.Comp;
 
-        if (comp.ClothingUids.Count == 0 || comp.ActionEntity == null || args.SlotFlags != comp.RequiredFlags)
+        if (comp.ClothingUids.Count == 0)
+            RebuildAttachedClothingMap(toggleable);
+
+        if (comp.ClothingUids.Count == 0 || args.SlotFlags != comp.RequiredFlags)
             return;
 
-        args.AddAction(comp.ActionEntity.Value);
+        if (!EnsureToggleAction(toggleable, comp))
+            return;
+
+        if (comp.ActionEntity is not { } actionEntity)
+            return;
+
+        args.AddAction(actionEntity);
+    }
+
+    private bool EnsureToggleAction(Entity<ToggleableClothingComponent> toggleable, ToggleableClothingComponent comp)
+    {
+        if (comp.ActionEntity != null && Exists(comp.ActionEntity.Value) && !TerminatingOrDeleted(comp.ActionEntity.Value))
+            return true;
+
+        if (!_actionContainer.EnsureAction(toggleable, ref comp.ActionEntity, out var action, comp.Action)
+            || comp.ActionEntity == null)
+            return false;
+
+        _actionsSystem.SetEntityIcon(comp.ActionEntity.Value, toggleable, action);
+        Dirty(toggleable, comp);
+        return true;
     }
 
     private void OnToggleableInit(Entity<ToggleableClothingComponent> toggleable, ref ComponentInit args)
@@ -454,6 +481,19 @@ public sealed class ToggleableClothingSystem : EntitySystem
         var comp = toggleable.Comp;
 
         comp.Container = _containerSystem.EnsureContainer<Container>(toggleable, comp.ContainerId);
+    }
+
+    private void OnToggleableStartup(Entity<ToggleableClothingComponent> toggleable, ref ComponentStartup args)
+    {
+        var comp = toggleable.Comp;
+
+        if (comp.Container == null)
+            comp.Container = _containerSystem.EnsureContainer<Container>(toggleable, comp.ContainerId);
+
+        if (comp.ClothingUids.Count == 0)
+            RebuildAttachedClothingMap(toggleable);
+
+        EnsureToggleAction(toggleable, comp);
     }
 
     private void OnAttachedInit(Entity<AttachedClothingComponent> attached, ref ComponentInit args)
@@ -466,6 +506,7 @@ public sealed class ToggleableClothingSystem : EntitySystem
     private void RebuildAttachedClothingMap(Entity<ToggleableClothingComponent> toggleable)
     {
         var comp = toggleable.Comp;
+        var previousMap = comp.ClothingUids.ToDictionary(entry => entry.Key, entry => entry.Value);
         comp.ClothingUids.Clear();
 
         var query = EntityQueryEnumerator<AttachedClothingComponent, ClothingComponent>();
@@ -475,17 +516,158 @@ public sealed class ToggleableClothingSystem : EntitySystem
                 continue;
 
             var slot = GetToggleableClothingSlotName(clothing.Slots);
+            if (slot == null && previousMap.TryGetValue(uid, out var previousSlot) && !string.IsNullOrWhiteSpace(previousSlot))
+                slot = previousSlot;
+
             if (slot == null)
                 continue;
 
             comp.ClothingUids[uid] = slot;
         }
+
+        // Any attached clothing that could not be resolved from current slot flags
+        // (e.g. legacy/custom slots) can still be restored from persisted mappings.
+        foreach (var (uid, slot) in previousMap)
+        {
+            if (string.IsNullOrWhiteSpace(slot))
+                continue;
+
+            if (comp.ClothingUids.ContainsKey(uid))
+                continue;
+
+            if (!TryComp(uid, out AttachedClothingComponent? attached) || attached.AttachedUid != toggleable.Owner)
+                continue;
+
+            comp.ClothingUids[uid] = slot;
+        }
+
+        // Recover attached mappings directly from the backing container in case
+        // the attached parent uid did not deserialize correctly.
+        if (comp.Container != null)
+        {
+            foreach (var uid in comp.Container.ContainedEntities)
+            {
+                if (comp.ClothingUids.ContainsKey(uid))
+                    continue;
+
+                if (!TryComp(uid, out AttachedClothingComponent? attached))
+                    continue;
+
+                if (attached.AttachedUid != toggleable.Owner)
+                {
+                    attached.AttachedUid = toggleable;
+                    Dirty(uid, attached);
+                }
+
+                string? slot = null;
+                if (TryComp(uid, out ClothingComponent? clothing))
+                    slot = GetToggleableClothingSlotName(clothing.Slots);
+
+                if (slot == null && previousMap.TryGetValue(uid, out var previousSlot) && !string.IsNullOrWhiteSpace(previousSlot))
+                    slot = previousSlot;
+
+                if (slot == null)
+                    continue;
+
+                comp.ClothingUids[uid] = slot;
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Sanitizes persisted references for toggleable clothing before grid snapshot save.
+    /// </summary>
+    public bool SanitizeForPersistence(Entity<ToggleableClothingComponent> toggleable)
+    {
+        var comp = toggleable.Comp;
+        var componentChanged = false;
+
+        if (comp.ActionEntity is { } actionUid && (!Exists(actionUid) || TerminatingOrDeleted(actionUid)))
+        {
+            comp.ActionEntity = null;
+            componentChanged = true;
+        }
+
+        var sanitizedMap = new Dictionary<EntityUid, string>();
+
+        foreach (var (attachedUid, slot) in comp.ClothingUids)
+        {
+            if (!attachedUid.IsValid() || !Exists(attachedUid) || TerminatingOrDeleted(attachedUid))
+            {
+                componentChanged = true;
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(slot))
+            {
+                componentChanged = true;
+                continue;
+            }
+
+            if (!TryComp(attachedUid, out AttachedClothingComponent? attached))
+            {
+                componentChanged = true;
+                continue;
+            }
+
+            if (attached.AttachedUid != toggleable.Owner)
+            {
+                attached.AttachedUid = toggleable;
+                Dirty(attachedUid, attached);
+                componentChanged = true;
+            }
+
+            if (!sanitizedMap.TryAdd(attachedUid, slot))
+                componentChanged = true;
+        }
+
+        if (comp.Container != null)
+        {
+            foreach (var containedUid in comp.Container.ContainedEntities)
+            {
+                if (sanitizedMap.ContainsKey(containedUid))
+                    continue;
+
+                if (!TryComp(containedUid, out AttachedClothingComponent? attached))
+                    continue;
+
+                if (attached.AttachedUid != toggleable.Owner)
+                {
+                    attached.AttachedUid = toggleable;
+                    Dirty(containedUid, attached);
+                    componentChanged = true;
+                }
+
+                if (!TryComp(containedUid, out ClothingComponent? clothing))
+                    continue;
+
+                var slot = GetToggleableClothingSlotName(clothing.Slots);
+                if (slot == null)
+                    continue;
+
+                sanitizedMap[containedUid] = slot;
+                componentChanged = true;
+            }
+        }
+
+        if (!componentChanged)
+            return false;
+
+        comp.ClothingUids = sanitizedMap;
+        Dirty(toggleable, comp);
+        return true;
     }
 
     private static string? GetToggleableClothingSlotName(SlotFlags slotFlags)
     {
         if (slotFlags.HasFlag(SlotFlags.HEAD))
             return "head";
+
+        if (slotFlags.HasFlag(SlotFlags.HELMETCOVER))
+            return "helmetcover";
+
+        if (slotFlags.HasFlag(SlotFlags.HELMETATTACHMENT))
+            return "helmetattachment";
 
         if (slotFlags.HasFlag(SlotFlags.GLOVES))
             return "gloves";
@@ -517,19 +699,22 @@ public sealed class ToggleableClothingSystem : EntitySystem
         var comp = toggleable.Comp;
         RebuildAttachedClothingMap(toggleable);
 
+        // Always ensure action exists, even if container/clothing is empty
+        if (_actionContainer.EnsureAction(toggleable, ref comp.ActionEntity, out var existingAction, comp.Action))
+            _actionsSystem.SetEntityIcon(comp.ActionEntity.Value, toggleable, existingAction);
+
         if (comp.Container!.Count != 0)
         {
             DebugTools.Assert(comp.ClothingUids.Count != 0, "Unexpected entity present inside of a toggleable clothing container.");
-
-            if (_actionContainer.EnsureAction(toggleable, ref comp.ActionEntity, out var existingAction, comp.Action))
-                _actionsSystem.SetEntityIcon(comp.ActionEntity.Value, toggleable, existingAction);
-
             Dirty(toggleable, comp);
             return;
         }
 
-        if (comp.ClothingUids.Count != 0 && comp.ActionEntity != null)
+        if (comp.ClothingUids.Count != 0)
+        {
+            Dirty(toggleable, comp);
             return;
+        }
 
         // Add prototype from ClothingPrototype and Slot field to ClothingPrototypes dictionary
         if (comp.ClothingPrototype != null && !string.IsNullOrEmpty(comp.Slot) && !comp.ClothingPrototypes.ContainsKey(comp.Slot))
