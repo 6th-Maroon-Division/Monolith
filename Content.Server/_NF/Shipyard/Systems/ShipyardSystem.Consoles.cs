@@ -651,11 +651,13 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
             return;
         }
 
+        var shipName = GetFullName(deed);
+
         SetStoredShip(userId, new StoredShipRecord
         {
             SlotId = slotId,
             SnapshotPath = snapshotPath.ToString(),
-            ShipName = GetFullName(deed),
+            ShipName = shipName,
             OwnerName = Name(player),
             SellValue = deed.PurchasedWithVoucher
                 ? 0
@@ -664,8 +666,7 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
             StoredAtUtc = DateTime.UtcNow,
         });
 
-        deed.ShuttleUid = null;
-        Dirty(targetId, deed);
+        RemComp<ShuttleDeedComponent>(targetId);
 
         // Explicitly remove persistence tracking records for anchors on this ship so storage and
         // persistence restore systems do not race each other on restart.
@@ -683,14 +684,14 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
 
         QueueDel(shuttleUid);
 
-        ConsolePopup(player, Loc.GetString("shipyard-console-storage-store-success", ("ship", GetFullName(deed))));
+        ConsolePopup(player, Loc.GetString("shipyard-console-storage-store-success", ("ship", shipName)));
         PlayConfirmSound(player, uid, component);
 
         var balance = TryComp<BankAccountComponent>(player, out var bank) ? bank.Balance : 0;
-        RefreshState(uid, player, balance, true, GetFullName(deed), 0, targetId, (ShipyardConsoleUiKey)args.UiKey, false);
+        RefreshState(uid, player, balance, true, null, 0, targetId, (ShipyardConsoleUiKey)args.UiKey, false);
 
         _adminLogger.Add(LogType.ShipYardUsage, LogImpact.Low,
-            $"{ToPrettyString(player):actor} stored ship '{GetFullName(deed)}' for later retrieval via {ToPrettyString(uid)}");
+            $"{ToPrettyString(player):actor} stored ship '{shipName}' for later retrieval via {ToPrettyString(uid)}");
     }
 
     public void OnRetrieveMessage(EntityUid uid, ShipyardConsoleComponent component, ShipyardConsoleRetrieveMessage args)
