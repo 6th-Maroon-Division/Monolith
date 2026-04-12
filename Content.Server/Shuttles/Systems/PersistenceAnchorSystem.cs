@@ -12,6 +12,8 @@ using Content.Server._NF.Station.Systems;
 using Content.Server._NF.Shipyard.Systems;
 using Content.Shared.Access.Components;
 using Content.Shared.CCVar;
+using Content.Shared.Clothing.Components;
+using Content.Shared.Clothing.EntitySystems;
 using Content.Shared.Damage;
 using Robust.Shared.EntitySerialization;
 using Content.Shared.GameTicking;
@@ -66,6 +68,7 @@ public sealed partial class PersistenceAnchorSystem : EntitySystem
     [Dependency] private readonly ShuttleConsoleLockSystem _shuttleLocks = default!;
     [Dependency] private readonly UserInterfaceSystem _ui = default!;
     [Dependency] private readonly SharedContainerSystem _containers = default!;
+    [Dependency] private readonly ToggleableClothingSystem _toggleableClothingSystem = default!;
 
     private readonly Dictionary<EntityUid, string> _gridToAnchor = new();
     private readonly Dictionary<string, EntityUid> _anchorToGrid = new();
@@ -1170,6 +1173,7 @@ public sealed partial class PersistenceAnchorSystem : EntitySystem
         var changedGuestAccess = false;
         var changedTargetSeeker = false;
         var changedJobSlots = false;
+        var changedToggleableClothing = false;
 
         var repairQuery = EntityQueryEnumerator<ShipRepairDataComponent, TransformComponent>();
         while (repairQuery.MoveNext(out var uid, out var repairData, out var xform))
@@ -1385,8 +1389,20 @@ public sealed partial class PersistenceAnchorSystem : EntitySystem
             Dirty(uid, jobSlots);
         }
 
-        if (changedRepairData || changedStorage || changedDocking || changedStationMember || changedJoints || changedGuestAccess || changedTargetSeeker || changedJobSlots)
-            Log.Debug($"[Persistence] Sanitized grid {ToPrettyString(grid)} before snapshot (repairData={changedRepairData}, storage={changedStorage}, docking={changedDocking}, stationMember={changedStationMember}, joints={changedJoints}, guestAccess={changedGuestAccess}, targetSeeker={changedTargetSeeker}, jobSlots={changedJobSlots}).");
+        var toggleableQuery = EntityQueryEnumerator<ToggleableClothingComponent, TransformComponent>();
+        while (toggleableQuery.MoveNext(out var uid, out var toggleable, out var xform))
+        {
+            if (xform.GridUid != grid)
+                continue;
+
+            if (!_toggleableClothingSystem.SanitizeForPersistence((uid, toggleable)))
+                continue;
+
+            changedToggleableClothing = true;
+        }
+
+        if (changedRepairData || changedStorage || changedDocking || changedStationMember || changedJoints || changedGuestAccess || changedTargetSeeker || changedJobSlots || changedToggleableClothing)
+            Log.Debug($"[Persistence] Sanitized grid {ToPrettyString(grid)} before snapshot (repairData={changedRepairData}, storage={changedStorage}, docking={changedDocking}, stationMember={changedStationMember}, joints={changedJoints}, guestAccess={changedGuestAccess}, targetSeeker={changedTargetSeeker}, jobSlots={changedJobSlots}, toggleableClothing={changedToggleableClothing}).");
     }
 
     private void EnsureStorageDirectories()
