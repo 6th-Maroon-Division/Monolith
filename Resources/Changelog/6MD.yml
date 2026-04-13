@@ -173,3 +173,13 @@ Entries:
   id: 15
   time: '2026-04-13T18:03:40.0000000+00:00'
   url: https://github.com/6th-Maroon-Division/Monolith/pull/39
+- author: chilla55
+  changes:
+    - type: Fix
+      message: >-
+        Persistence anchors placed during runtime now immediately register and
+        save, allowing normal autosave/restore behavior without manual
+        intervention
+  id: 16
+  time: '2026-04-13T18:20:46.0000000+00:00'
+  url: https://github.com/6th-Maroon-Division/Monolith/pull/40
