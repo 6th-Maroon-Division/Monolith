@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using System.Text.Json;
+using Content.Server.Gravity;
 using Content.Server.GameTicking;
 using Content.Server.Hands.Systems;
 using Content.Server.Shuttles.Components;
@@ -69,6 +70,7 @@ public sealed partial class PersistenceAnchorSystem : EntitySystem
     [Dependency] private readonly UserInterfaceSystem _ui = default!;
     [Dependency] private readonly SharedContainerSystem _containers = default!;
     [Dependency] private readonly ToggleableClothingSystem _toggleableClothingSystem = default!;
+    [Dependency] private readonly GravityGeneratorSystem _gravityGenerators = default!;
 
     private readonly Dictionary<EntityUid, string> _gridToAnchor = new();
     private readonly Dictionary<string, EntityUid> _anchorToGrid = new();
@@ -364,6 +366,8 @@ public sealed partial class PersistenceAnchorSystem : EntitySystem
 
             if (!TryGetLiveAnchor(grid, anchorId, out var anchor, out var component))
                 continue;
+
+            _gravityGenerators.ResyncGridGravity(grid);
 
             SaveSnapshot(anchor, component, immediate: true);
             _pendingRestoreHealAnchors.Remove(anchorId);
