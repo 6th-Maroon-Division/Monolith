@@ -28,6 +28,9 @@ using Robust.Shared.Utility;
 using Content.Shared.Doors.Components;
 using Robust.Shared.Map.Components;
 using Content.Shared.Salvage.Expeditions;
+using Content.Server.StationRecords;
+using Content.Server.Station.Components;
+using Content.Server._NF.Station.Components;
 
 namespace Content.Server._NF.Shipyard.Systems;
 
@@ -49,6 +52,7 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
     [Dependency] private readonly ShipShieldsSystem _shipShields = default!;
     [Dependency] private readonly DeviceNetworkSystem _deviceNetwork = default!;
     [Dependency] private readonly SalvageSystem _salvage = default!;
+    [Dependency] private readonly StationJobsSystem _stationJobs = default!;
 
     public MapId? ShipyardMap { get; private set; }
     private float _shuttleIndex;
@@ -361,16 +365,22 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
         if (!HasComp<ShuttleComponent>(shuttleUid))
             return null;
 
+        if (!TryComp<ShuttleDeedComponent>(shuttleUid, out var deed))
+            return null;
+
         if (_station.GetOwningStation(shuttleUid) is { Valid: true } existingStation)
         {
             if (GridHasExpeditionConsole(shuttleUid))
                 EnsureComp<SalvageExpeditionDataComponent>(existingStation);
 
+            EnsureComp<StationRecordsComponent>(existingStation);
+            EnsureComp<StationJobsComponent>(existingStation);
+            _stationJobs.SetDefaultShipJobs(existingStation);
+
+            EnsureComp<ExtraShuttleInformationComponent>(existingStation);
+
             return existingStation;
         }
-
-        if (!TryComp<ShuttleDeedComponent>(shuttleUid, out var deed))
-            return null;
 
         var stationName = GetFullName(deed);
         if (string.IsNullOrWhiteSpace(stationName))
@@ -388,6 +398,12 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
 
         if (GridHasExpeditionConsole(shuttleUid))
             EnsureComp<SalvageExpeditionDataComponent>(stationUid);
+
+        EnsureComp<StationRecordsComponent>(stationUid);
+        EnsureComp<StationJobsComponent>(stationUid);
+        _stationJobs.SetDefaultShipJobs(stationUid);
+
+        EnsureComp<ExtraShuttleInformationComponent>(stationUid);
 
         return stationUid;
     }
