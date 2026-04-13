@@ -49,6 +49,9 @@ public sealed partial class StationJobsSystem : EntitySystem
 
     private void OnInit(Entity<StationJobsComponent> ent, ref ComponentInit args)
     {
+        if (ent.Comp.SetupAvailableJobs == null)
+            ent.Comp.SetupAvailableJobs = new();
+
         ent.Comp.MidRoundTotalJobs = ent.Comp.SetupAvailableJobs.Values
             .Select(x => Math.Max(x[1], 0))
             .Sum();
@@ -561,6 +564,38 @@ public sealed partial class StationJobsSystem : EntitySystem
     public void UpdateJobsAvailable() // Frontier: private<public
     {
         _availableJobsDirty = true;
+    }
+
+    /// <summary>
+    /// Sets up default jobs (Contractor, Pilot, Mercenary) for a restored or purchased ship.
+    /// </summary>
+    public void SetDefaultShipJobs(EntityUid station, StationJobsComponent? stationJobs = null)
+    {
+        if (!Resolve(station, ref stationJobs, false))
+            return;
+
+        // Default jobs for purchased/restored ships
+        // Format: [startSlots, midRoundSlots] where 0 means unlimited
+        stationJobs.SetupAvailableJobs["Contractor"] = new[] { 0, 0 };
+        stationJobs.SetupAvailableJobs["Pilot"] = new[] { 0, 0 };
+        stationJobs.SetupAvailableJobs["Mercenary"] = new[] { 0, 0 };
+
+        // Re-initialize the job list from setup
+        stationJobs.JobList = stationJobs.SetupAvailableJobs.ToDictionary(
+            x => x.Key,
+            x => x.Value[1] < 0 ? null : (int?)x.Value[1]);
+
+        stationJobs.MidRoundTotalJobs = stationJobs.SetupAvailableJobs.Values
+            .Select(x => Math.Max(x[1], 0))
+            .Sum();
+
+        stationJobs.OverflowJobs = stationJobs.SetupAvailableJobs
+            .Where(x => x.Value[0] < 0)
+            .Select(x => x.Key)
+            .ToHashSet();
+
+        stationJobs.TotalJobs = stationJobs.JobList.Values.Select(x => x ?? 0).Sum();
+        UpdateJobsAvailable();
     }
 
     private void OnPlayerJoinedLobby(PlayerJoinedLobbyEvent ev)
