@@ -8,6 +8,7 @@ using Content.Server.DeviceNetwork.Systems;
 using Content.Server.Gravity;
 using Content.Server.GameTicking;
 using Content.Server.Hands.Systems;
+using Content.Server.Salvage;
 using Content.Server.Shuttles.Components;
 using Content.Server._Mono.Shuttles.Components;
 using Content.Server._Mono.TargetSeekingAlert;
@@ -75,6 +76,7 @@ public sealed partial class PersistenceAnchorSystem : EntitySystem
     [Dependency] private readonly GravityGeneratorSystem _gravityGenerators = default!;
     [Dependency] private readonly ShipShieldsSystem _shipShields = default!;
     [Dependency] private readonly DeviceNetworkSystem _deviceNetwork = default!;
+    [Dependency] private readonly SalvageSystem _salvage = default!;
 
     private readonly Dictionary<EntityUid, string> _gridToAnchor = new();
     private readonly Dictionary<string, EntityUid> _anchorToGrid = new();
@@ -371,9 +373,11 @@ public sealed partial class PersistenceAnchorSystem : EntitySystem
             if (!TryGetLiveAnchor(grid, anchorId, out var anchor, out var component))
                 continue;
 
+            _shipyard.EnsureRestoredShuttleStation(grid);
             _deviceNetwork.ResyncGridDeviceNetwork(grid);
             _gravityGenerators.ResyncGridGravity(grid);
             _shipShields.ResyncGridShields(grid);
+            _salvage.ResyncGridExpeditionConsoles(grid);
 
             SaveSnapshot(anchor, component, immediate: true);
             _pendingRestoreHealAnchors.Remove(anchorId);
