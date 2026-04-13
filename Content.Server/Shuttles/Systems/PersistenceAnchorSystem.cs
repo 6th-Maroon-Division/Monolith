@@ -4,6 +4,7 @@ using System.Linq;
 using System.Numerics;
 using System.Text.Json;
 using Content.Server._Crescent.ShipShields;
+using Content.Server.DeviceNetwork.Systems;
 using Content.Server.Gravity;
 using Content.Server.GameTicking;
 using Content.Server.Hands.Systems;
@@ -73,6 +74,7 @@ public sealed partial class PersistenceAnchorSystem : EntitySystem
     [Dependency] private readonly ToggleableClothingSystem _toggleableClothingSystem = default!;
     [Dependency] private readonly GravityGeneratorSystem _gravityGenerators = default!;
     [Dependency] private readonly ShipShieldsSystem _shipShields = default!;
+    [Dependency] private readonly DeviceNetworkSystem _deviceNetwork = default!;
 
     private readonly Dictionary<EntityUid, string> _gridToAnchor = new();
     private readonly Dictionary<string, EntityUid> _anchorToGrid = new();
@@ -369,6 +371,7 @@ public sealed partial class PersistenceAnchorSystem : EntitySystem
             if (!TryGetLiveAnchor(grid, anchorId, out var anchor, out var component))
                 continue;
 
+            _deviceNetwork.ResyncGridDeviceNetwork(grid);
             _gravityGenerators.ResyncGridGravity(grid);
             _shipShields.ResyncGridShields(grid);
 

@@ -261,6 +261,48 @@ namespace Content.Server.DeviceNetwork.Systems
         }
 
         /// <summary>
+        /// Re-applies map-init style network setup for all devices on a grid and reconnects them.
+        /// Used for ships restored from serialized snapshots where map-init hooks may have already been consumed.
+        /// </summary>
+        public void ResyncGridDeviceNetwork(EntityUid gridUid)
+        {
+            var query = EntityQueryEnumerator<DeviceNetworkComponent, TransformComponent>();
+            while (query.MoveNext(out var uid, out var device, out var xform))
+            {
+                if (xform.GridUid != gridUid)
+                    continue;
+
+                if (device.ReceiveFrequency == null
+                    && device.ReceiveFrequencyId != null
+                    && _protoMan.TryIndex<DeviceFrequencyPrototype>(device.ReceiveFrequencyId, out var receive))
+                {
+                    device.ReceiveFrequency = receive.Frequency;
+                }
+
+                if (device.TransmitFrequency == null
+                    && device.TransmitFrequencyId != null
+                    && _protoMan.TryIndex<DeviceFrequencyPrototype>(device.TransmitFrequencyId, out var xmit))
+                {
+                    device.TransmitFrequency = xmit.Frequency;
+                }
+
+                if (!device.AutoConnect)
+                    continue;
+
+                if (IsDeviceConnected(uid, device))
+                    continue;
+
+                if (ConnectDevice(uid, device))
+                    continue;
+
+                if (device.CustomAddress)
+                    continue;
+
+                RandomizeAddress(uid, device);
+            }
+        }
+
+        /// <summary>
         ///     Try to find a device on a network using its address.
         /// </summary>
         private bool TryGetDevice(int netId, string address, [NotNullWhen(true)] out DeviceNetworkComponent? device) =>
