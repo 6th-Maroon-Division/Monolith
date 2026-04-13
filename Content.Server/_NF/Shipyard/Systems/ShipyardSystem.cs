@@ -5,6 +5,7 @@ using Content.Server.Cargo.Systems;
 using Content.Server._Crescent.ShipShields;
 using Content.Server.DeviceNetwork.Systems;
 using Content.Server.Gravity;
+using Content.Server.Salvage;
 using Content.Server.Station.Systems;
 using Content.Shared._NF.Shipyard.Components;
 using Content.Shared._NF.Shipyard;
@@ -26,6 +27,7 @@ using Robust.Shared.EntitySerialization.Systems;
 using Robust.Shared.Utility;
 using Content.Shared.Doors.Components;
 using Robust.Shared.Map.Components;
+using Content.Shared.Salvage.Expeditions;
 
 namespace Content.Server._NF.Shipyard.Systems;
 
@@ -46,6 +48,7 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
     [Dependency] private readonly GravityGeneratorSystem _gravityGenerators = default!;
     [Dependency] private readonly ShipShieldsSystem _shipShields = default!;
     [Dependency] private readonly DeviceNetworkSystem _deviceNetwork = default!;
+    [Dependency] private readonly SalvageSystem _salvage = default!;
 
     public MapId? ShipyardMap { get; private set; }
     private float _shuttleIndex;
@@ -359,7 +362,12 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
             return null;
 
         if (_station.GetOwningStation(shuttleUid) is { Valid: true } existingStation)
+        {
+            if (GridHasExpeditionConsole(shuttleUid))
+                EnsureComp<SalvageExpeditionDataComponent>(existingStation);
+
             return existingStation;
+        }
 
         if (!TryComp<ShuttleDeedComponent>(shuttleUid, out var deed))
             return null;
@@ -378,7 +386,22 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
         _metaData.SetEntityName(stationUid, stationName);
         _station.AddGridToStation(stationUid, shuttleUid, name: stationName);
 
+        if (GridHasExpeditionConsole(shuttleUid))
+            EnsureComp<SalvageExpeditionDataComponent>(stationUid);
+
         return stationUid;
+    }
+
+    private bool GridHasExpeditionConsole(EntityUid shuttleUid)
+    {
+        var query = EntityQueryEnumerator<SalvageExpeditionConsoleComponent, TransformComponent>();
+        while (query.MoveNext(out _, out _, out var xform))
+        {
+            if (xform.GridUid == shuttleUid)
+                return true;
+        }
+
+        return false;
     }
 
     // <summary>
