@@ -805,6 +805,7 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
         }
 
         _shuttle.TryFTLDock(shuttleUid, shuttle, targetGrid.Value);
+        _deviceNetwork.ResyncGridDeviceNetwork(shuttleUid);
         _gravityGenerators.ResyncGridGravity(shuttleUid);
         _shipShields.ResyncGridShields(shuttleUid);
 
