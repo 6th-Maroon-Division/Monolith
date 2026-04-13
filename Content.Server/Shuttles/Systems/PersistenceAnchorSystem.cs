@@ -568,8 +568,11 @@ public sealed partial class PersistenceAnchorSystem : EntitySystem
 
     private void OnAnchorMapInit(Entity<PersistenceAnchorComponent> ent, ref MapInitEvent args)
     {
-        // Avoid mutating freshly spawned anchors during prototype validation.
-        TryRegisterAnchor(ent, ent.Comp, immediateSave: false);
+        // immediateSave: true so anchors placed mid-game (admin spawn, construction)
+        // get an AnchorId assigned and a snapshot written immediately.
+        // Prototype validation is still safe: TryRegisterAnchor returns early when
+        // the entity has no valid shuttle/station grid.
+        TryRegisterAnchor(ent, ent.Comp, immediateSave: true);
     }
 
     private void OnOwnerIdInserted(Entity<PersistenceAnchorComponent> ent, ref EntInsertedIntoContainerMessage args)
@@ -593,7 +596,7 @@ public sealed partial class PersistenceAnchorSystem : EntitySystem
             return;
         }
 
-        TryRegisterAnchor(ent, ent.Comp, immediateSave: false);
+        TryRegisterAnchor(ent, ent.Comp, immediateSave: true);
     }
 
     private void OnAnchorShutdown(Entity<PersistenceAnchorComponent> ent, ref ComponentShutdown args)
