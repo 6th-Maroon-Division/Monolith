@@ -130,7 +130,15 @@ public sealed partial class FireControlSystem : EntitySystem
         if (component.ConnectedServer == null
             || !TryComp<FireControlServerComponent>(component.ConnectedServer, out var server)
             || !server.Consoles.Contains(uid))
-            return;
+        {
+            // Self-heal stale console bindings (common after restore) before rejecting fire input.
+            DoRefreshServer(uid, component);
+
+            if (component.ConnectedServer == null
+                || !TryComp<FireControlServerComponent>(component.ConnectedServer, out server)
+                || !server.Consoles.Contains(uid))
+                return;
+        }
 
         var xform = Transform(uid);
         var grid = xform.GridUid;
