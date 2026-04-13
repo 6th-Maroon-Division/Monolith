@@ -27,6 +27,7 @@ using Content.Shared.StationRecords;
 using Content.Server.Chat.Systems;
 using Content.Server.Mind;
 using Content.Server.Preferences.Managers;
+using Content.Server.Salvage;
 using Content.Server.StationRecords;
 using Content.Server.StationRecords.Systems;
 using Content.Shared.Database;
@@ -787,9 +788,11 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
         }
 
         _shuttle.TryFTLDock(shuttleUid, shuttle, targetGrid.Value);
+        _ = EnsureRestoredShuttleStation(shuttleUid);
         _deviceNetwork.ResyncGridDeviceNetwork(shuttleUid);
         _gravityGenerators.ResyncGridGravity(shuttleUid);
         _shipShields.ResyncGridShields(shuttleUid);
+        _salvage.ResyncGridExpeditionConsoles(shuttleUid);
 
         var ownerName = string.IsNullOrWhiteSpace(record.OwnerName) ? Name(player).Trim() : record.OwnerName;
         var deedID = EnsureComp<ShuttleDeedComponent>(targetId);
