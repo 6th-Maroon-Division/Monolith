@@ -14,6 +14,7 @@ public sealed class GravityGeneratorSystem : EntitySystem
     {
         base.Initialize();
 
+        SubscribeLocalEvent<GravityGeneratorComponent, ComponentStartup>(OnStartup);
         SubscribeLocalEvent<GravityGeneratorComponent, EntParentChangedMessage>(OnParentChanged);
         SubscribeLocalEvent<GravityGeneratorComponent, ChargedMachineActivatedEvent>(OnActivated);
         SubscribeLocalEvent<GravityGeneratorComponent, ChargedMachineDeactivatedEvent>(OnDeactivated);
@@ -33,6 +34,32 @@ public sealed class GravityGeneratorSystem : EntitySystem
             _lights.SetRadius(uid, MathHelper.Lerp(grav.LightRadiusMin, grav.LightRadiusMax, charge.Charge),
                 pointLight);
         }
+    }
+
+    private void OnStartup(EntityUid uid, GravityGeneratorComponent component, ComponentStartup args)
+    {
+        if (!component.GravityActive)
+            return;
+
+        var xform = Transform(uid);
+
+        if (TryComp(xform.ParentUid, out GravityComponent? gravity))
+            _gravitySystem.RefreshGravity(xform.ParentUid, gravity);
+    }
+
+    public void ResyncGridGravity(EntityUid gridUid)
+    {
+        var query = EntityQueryEnumerator<GravityGeneratorComponent, PowerChargeComponent, TransformComponent>();
+        while (query.MoveNext(out var uid, out var grav, out var charge, out var xform))
+        {
+            if (xform.GridUid != gridUid)
+                continue;
+
+            grav.GravityActive = charge.Active || (charge.Intact && charge.SwitchedOn && charge.Charge > 0f);
+        }
+
+        if (TryComp(gridUid, out GravityComponent? gravity))
+            _gravitySystem.RefreshGravity(gridUid, gravity);
     }
 
     private void OnActivated(Entity<GravityGeneratorComponent> ent, ref ChargedMachineActivatedEvent args)
