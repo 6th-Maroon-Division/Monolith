@@ -115,6 +115,21 @@ namespace Content.Shared.Containers.ItemSlots
         }
 
         /// <summary>
+        ///     Rebind an existing item slot to the current container manager container for its id.
+        ///     This is useful for entities loaded at runtime where deserialization may replace container instances
+        ///     after a slot wrapper was created.
+        /// </summary>
+        public void RebindItemSlot(EntityUid uid, string id, ItemSlot slot, ItemSlotsComponent? itemSlots = null)
+        {
+            itemSlots ??= EnsureComp<ItemSlotsComponent>(uid);
+            DebugTools.AssertOwner(uid, itemSlots);
+
+            slot.ContainerSlot = _containers.EnsureContainer<ContainerSlot>(uid, id);
+            itemSlots.Slots[id] = slot;
+            Dirty(uid, itemSlots);
+        }
+
+        /// <summary>
         ///     Remove an item slot. This should generally be called whenever a component that added a slot is being
         ///     removed.
         /// </summary>
