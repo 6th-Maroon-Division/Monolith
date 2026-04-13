@@ -1,6 +1,7 @@
 using Content.Server.Shuttles.Systems;
 using Content.Server.Shuttles.Components;
 using Content.Server.Cargo.Systems;
+using Content.Server.Gravity;
 using Content.Server.Station.Systems;
 using Content.Shared._NF.Shipyard.Components;
 using Content.Shared._NF.Shipyard;
@@ -40,6 +41,7 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
     [Dependency] private SharedTransformSystem _transform = default!;
     [Dependency] private ShipOwnershipSystem _shipOwnership = default!;
     [Dependency] private EntityLookupSystem _lookup = default!;
+    [Dependency] private readonly GravityGeneratorSystem _gravityGenerators = default!;
 
     public MapId? ShipyardMap { get; private set; }
     private float _shuttleIndex;
