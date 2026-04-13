@@ -20,6 +20,8 @@ using Content.Shared.Interaction;
 using Content.Shared._Mono.ShipGuns;
 using Content.Shared.Examine;
 using Content.Server.Salvage.Expeditions;
+using Content.Shared.Weapons.Ranged.Components;
+using Robust.Shared.Log;
 
 namespace Content.Server._Mono.FireControl;
 
@@ -207,7 +209,7 @@ public sealed partial class FireControlSystem : EntitySystem
 
         while (query.MoveNext(out var controllable, out var controlComp))
         {
-            if (_xform.GetGrid(controllable) == grid && EntityManager.GetComponent<TransformComponent>(controllable).Anchored)
+            if (_xform.GetGrid(controllable) == grid)
                 TryRegister(controllable, controlComp);
         }
 
@@ -379,6 +381,91 @@ public sealed partial class FireControlSystem : EntitySystem
         }
     }
 
+    /// <summary>
+    /// Rebuilds fire control server and console bindings on a specific grid.
+    /// </summary>
+    public void ResyncGridFireControl(EntityUid gridUid)
+    {
+        CleanupInvalidServerReferences();
+
+        var controllableQuery = EntityQueryEnumerator<FireControllableComponent>();
+        while (controllableQuery.MoveNext(out var controllableUid, out var controllable))
+        {
+            if (_xform.GetGrid(controllableUid) != gridUid)
+                continue;
+
+            // Runtime state can be stale after persistence restore.
+            controllable.ControllingServer = null;
+            controllable.NextFire = TimeSpan.Zero;
+
+            if (TryComp<GunComponent>(controllableUid, out var gunComp))
+            {
+                gunComp.NextFire = TimeSpan.Zero;
+                gunComp.ShotCounter = 0;
+                gunComp.BurstActivated = false;
+                gunComp.BurstShotsCount = 0;
+                gunComp.ShootCoordinates = null;
+                gunComp.Target = null;
+                // FireRateModified (and other *Modified fields) are not serialized; they must be
+                // recalculated after restore, otherwise all AttemptShoot calls are blocked.
+                _gun.RefreshModifiers((controllableUid, gunComp));
+            }
+
+            // Auto-fire guns can remain stuck disabled after restore without a fresh anchor/power event.
+            if (TryComp<AutoShootGunComponent>(controllableUid, out var autoShoot))
+            {
+                if (_gun.CanEnable(controllableUid, autoShoot))
+                    _gun.EnableGun(controllableUid, autoShoot);
+                else
+                    _gun.DisableGun(controllableUid, autoShoot);
+            }
+        }
+
+        var serversOnGrid = new List<EntityUid>();
+        var serverQuery = EntityQueryEnumerator<FireControlServerComponent>();
+
+        while (serverQuery.MoveNext(out var serverUid, out _))
+        {
+            if (_xform.GetGrid(serverUid) == gridUid)
+                serversOnGrid.Add(serverUid);
+        }
+
+        // Hard-reset server bindings so stale controlled weapon state is rebuilt after restore.
+        foreach (var serverUid in serversOnGrid)
+        {
+            if (!TryComp<FireControlServerComponent>(serverUid, out var serverComp))
+                continue;
+
+            Disconnect(serverUid, serverComp);
+        }
+
+        foreach (var serverUid in serversOnGrid)
+        {
+            if (!Exists(serverUid)
+                || !_power.IsPowered(serverUid)
+                || !TryComp<FireControlServerComponent>(serverUid, out var serverComp))
+                continue;
+
+            TryConnect(serverUid, serverComp);
+        }
+
+        if (TryComp<FireControlGridComponent>(gridUid, out var controlGrid)
+            && controlGrid.ControllingServer != null)
+        {
+            RefreshControllables(gridUid, controlGrid);
+        }
+
+        var consoleQuery = EntityQueryEnumerator<FireControlConsoleComponent>();
+
+        while (consoleQuery.MoveNext(out var consoleUid, out var console))
+        {
+            if (_xform.GetGrid(consoleUid) != gridUid)
+                continue;
+
+            DoRefreshServer(consoleUid, console);
+        }
+    }
+
     public bool CanFireWeapons(EntityUid grid)
     {
         if (TerminatingOrDeleted(grid)
@@ -410,8 +497,15 @@ public sealed partial class FireControlSystem : EntitySystem
         foreach (var weapon in weapons)
         {
             var localWeapon = GetEntity(weapon);
-            if (!Exists(localWeapon) || !component.Controlled.Contains(localWeapon))
+            if (!Exists(localWeapon))
+            {
                 continue;
+            }
+
+            if (!component.Controlled.Contains(localWeapon))
+            {
+                continue;
+            }
 
             var fired = AttemptFire(localWeapon, localWeapon, targetCoords);
 
@@ -492,13 +586,17 @@ public sealed partial class FireControlSystem : EntitySystem
         var direction = targetPos - weaponPos;
         var distance = direction.Length();
         if (distance <= float.Epsilon)
+        {
             return false; // Can't fire at the same position
+        }
 
         direction = Vector2.Normalize(direction);
 
         // Check for obstacles in the firing direction
         if (!CanFireInDirection(weapon, weaponPos, direction, targetPos, weaponXform.MapID))
+        {
             return false;
+        }
 
         // Set the cooldown for next firing
         comp.NextFire = _timing.CurTime + TimeSpan.FromSeconds(comp.FireCooldown);
@@ -526,15 +624,21 @@ public sealed partial class FireControlSystem : EntitySystem
     {
         // Check if weapon is powered
         if (!_power.IsPowered(weapon))
+        {
             return false;
+        }
 
         // Check if weapon is connected to a server
         if (comp.ControllingServer == null && !noServer)
+        {
             return false;
+        }
 
         // Check for other conditions like cooldowns if needed
         if (comp.NextFire > _timing.CurTime)
+        {
             return false;
+        }
 
         return true;
     }

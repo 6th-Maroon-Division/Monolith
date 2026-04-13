@@ -55,6 +55,7 @@ using Content.Shared.Tag;
 using Robust.Shared.EntitySerialization;
 using Robust.Shared.Timing;
 using Robust.Shared.Utility;
+using Content.Server._Mono.FireControl;
 
 namespace Content.Server._NF.Shipyard.Systems;
 
@@ -81,6 +82,7 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
     [Dependency] private readonly PersistenceAnchorSystem _persistenceAnchor = default!;
     [Dependency] private readonly IGameTiming _timing = default!;
     [Dependency] private readonly TagSystem _tagSystem = default!;
+    [Dependency] private readonly FireControlSystem _fireControl = default!;
 
     private static readonly ProtoId<TagPrototype> CrewedShuttleTag = "CrewedShuttle";
     private static readonly Regex DeedRegex = new(@"\s*\([^()]*\)");
@@ -790,9 +792,11 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
         _shuttle.TryFTLDock(shuttleUid, shuttle, targetGrid.Value);
         _ = EnsureRestoredShuttleStation(shuttleUid);
         _deviceNetwork.ResyncGridDeviceNetwork(shuttleUid);
+        _extensionCables.ResyncGridConnections(shuttleUid);
         _gravityGenerators.ResyncGridGravity(shuttleUid);
         _shipShields.ResyncGridShields(shuttleUid);
         _salvage.ResyncGridExpeditionConsoles(shuttleUid);
+        _fireControl.ResyncGridFireControl(shuttleUid);
 
         var ownerName = string.IsNullOrWhiteSpace(record.OwnerName) ? Name(player).Trim() : record.OwnerName;
         var deedID = EnsureComp<ShuttleDeedComponent>(targetId);
