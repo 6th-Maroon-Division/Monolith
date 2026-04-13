@@ -492,8 +492,6 @@ public sealed class ToggleableClothingSystem : EntitySystem
 
         if (comp.ClothingUids.Count == 0)
             RebuildAttachedClothingMap(toggleable);
-
-        EnsureToggleAction(toggleable, comp);
     }
 
     private void OnAttachedInit(Entity<AttachedClothingComponent> attached, ref ComponentInit args)
