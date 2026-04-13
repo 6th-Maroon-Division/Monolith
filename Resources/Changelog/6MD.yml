@@ -89,3 +89,12 @@ Entries:
   id: 8
   time: '2026-04-13T02:59:36.0000000+00:00'
   url: https://github.com/6th-Maroon-Division/Monolith/pull/21
+- author: chilla55
+  changes:
+    - type: Fix
+      message: >-
+        Ship shields now properly reactivate after shipyard retrieval and
+        persistence-anchor ship restore.
+  id: 9
+  time: '2026-04-13T04:35:13.0000000+00:00'
+  url: https://github.com/6th-Maroon-Division/Monolith/pull/26
