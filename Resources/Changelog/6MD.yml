@@ -125,3 +125,12 @@ Entries:
   id: 11
   time: '2026-04-13T05:27:18.0000000+00:00'
   url: https://github.com/6th-Maroon-Division/Monolith/pull/28
+- author: chilla55
+  changes:
+    - type: Fix
+      message: >-
+        Fixed expedition consoles not working after ships were stored and
+        retrieved.
+  id: 12
+  time: '2026-04-13T06:11:13.0000000+00:00'
+  url: https://github.com/6th-Maroon-Division/Monolith/pull/30
