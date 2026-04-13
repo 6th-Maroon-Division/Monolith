@@ -44,7 +44,7 @@ namespace Content.Server.Chemistry.EntitySystems
         {
             base.Initialize();
 
-            SubscribeLocalEvent<ReagentDispenserComponent, ComponentStartup>(SubscribeUpdateUiState);
+            SubscribeLocalEvent<ReagentDispenserComponent, ComponentStartup>(OnDispenserStartup);
             SubscribeLocalEvent<ReagentDispenserComponent, SolutionContainerChangedEvent>(SubscribeUpdateUiState);
             SubscribeLocalEvent<ReagentDispenserComponent, EntInsertedIntoContainerMessage>(OnEntInserted); // Frontier: SubscribeUpdateUiState < OnEntInserted
             SubscribeLocalEvent<ReagentDispenserComponent, EntRemovedFromContainerMessage>(SubscribeUpdateUiState);
@@ -59,6 +59,7 @@ namespace Content.Server.Chemistry.EntitySystems
             SubscribeLocalEvent<ReagentDispenserComponent, ReagentDispenserDispenseReagentMessage>(OnDispenseReagentMessage);
             SubscribeLocalEvent<ReagentDispenserComponent, ReagentDispenserClearContainerSolutionMessage>(OnClearContainerSolutionMessage);
 
+            SubscribeLocalEvent<ReagentDispenserComponent, ComponentInit>(OnDispenserInit); // FIX: Recreate slots when loaded from save
             SubscribeLocalEvent<ReagentDispenserComponent, MapInitEvent>(OnMapInit, before: new []{typeof(ItemSlotsSystem)});
         }
 
@@ -235,6 +236,75 @@ namespace Content.Server.Chemistry.EntitySystems
         }
 
         /// <summary>
+        /// FIX: Initialize dispenser slots when component initializes.
+        /// For dispensers loaded from save (where slots were cleared), this recreates them.
+        /// For fresh spawns, MapInit/RefreshParts already handled it.
+        /// </summary>
+        private void OnDispenserInit(EntityUid uid, ReagentDispenserComponent component, ComponentInit args)
+        {
+            // If slots are empty (loaded from save with cleared slots), trigger RefreshParts
+            if (component.StorageSlots.Count == 0)
+            {
+                // Create default part ratings - base parts (rating 1.0)
+                var partRatings = new Dictionary<string, float>
+                {
+                    { component.SlotUpgradeMachinePart, 1.0f }
+                };
+                
+                // Trigger RefreshParts to create the slots
+                var ev = new RefreshPartsEvent { PartRatings = partRatings };
+                RaiseLocalEvent(uid, ev);
+            }
+        }
+
+        private void OnDispenserStartup(EntityUid uid, ReagentDispenserComponent component, ComponentStartup args)
+        {
+            var slotCount = Math.Max(component.NumSlots, Math.Max(component.StorageSlots.Count, component.StorageSlotIds.Count));
+            if (slotCount == 0)
+            {
+                UpdateUiState((uid, component));
+                return;
+            }
+
+            if (slotCount > component.NumSlots)
+                component.NumSlots = slotCount;
+
+            for (var i = 0; i < slotCount; i++)
+            {
+                var storageSlotId = ReagentDispenserComponent.BaseStorageSlotId + i;
+
+                if (i >= component.StorageSlotIds.Count)
+                    component.StorageSlotIds.Add(storageSlotId);
+                else
+                    component.StorageSlotIds[i] = storageSlotId;
+
+                if (i >= component.StorageSlots.Count)
+                {
+                    component.StorageSlots.Add(new ItemSlot
+                    {
+                        Whitelist = component.StorageWhitelist,
+                        Swap = false,
+                        EjectOnBreak = true,
+                    });
+                }
+
+                var slot = component.StorageSlots[i];
+                slot.Name = "Storage Slot " + (i + 1);
+
+                if (_itemSlotsSystem.TryGetSlot(uid, storageSlotId, out var existingSlot))
+                {
+                    _itemSlotsSystem.RebindItemSlot(uid, storageSlotId, existingSlot);
+                    component.StorageSlots[i] = existingSlot;
+                    continue;
+                }
+
+                _itemSlotsSystem.RebindItemSlot(uid, storageSlotId, slot);
+            }
+
+            UpdateUiState((uid, component));
+        }
+
+        /// <summary>
         /// Automatically generate storage slots for all NumSlots, and fill them with their initial chemicals.
         /// The actual spawning of entities happens in ItemSlotsSystem's MapInit.
         /// </summary>
@@ -274,16 +344,91 @@ namespace Content.Server.Chemistry.EntitySystems
 
             _itemSlotsSystem.AddItemSlot(uid, SharedReagentDispenser.OutputSlotName, component.BeakerSlot);
 
+            // Restore path can deserialize container contents but leave slot registration/state out of sync.
+            // Rebuild slot registration from the serialized slot/container data.
+            var slotCount = Math.Max(component.NumSlots, Math.Max(component.StorageSlots.Count, component.StorageSlotIds.Count));
+            if (slotCount > component.NumSlots)
+                component.NumSlots = slotCount;
+
+            for (var i = 0; i < slotCount; i++)
+            {
+                var storageSlotId = ReagentDispenserComponent.BaseStorageSlotId + i;
+
+                // Keep serialized id list in sync with expected ids.
+                if (i >= component.StorageSlotIds.Count)
+                    component.StorageSlotIds.Add(storageSlotId);
+                else
+                    component.StorageSlotIds[i] = storageSlotId;
+
+                ItemSlot storageSlot;
+                if (i < component.StorageSlots.Count)
+                {
+                    storageSlot = component.StorageSlots[i];
+                }
+                else
+                {
+                    storageSlot = new ItemSlot
+                    {
+                        Whitelist = component.StorageWhitelist,
+                        Swap = false,
+                        EjectOnBreak = true,
+                    };
+
+                    component.StorageSlots.Add(storageSlot);
+                }
+
+                storageSlot.Name = "Storage Slot " + (i + 1);
+
+                if (_itemSlotsSystem.TryGetSlot(uid, storageSlotId, out var existingSlot))
+                {
+                    // Only force rebind if the slot is actually broken.
+                    // Re-registering healthy slots triggers duplicate-key logs on normal map loads.
+                    if (existingSlot.ContainerSlot == null)
+                    {
+                        _itemSlotsSystem.AddItemSlot(uid, storageSlotId, existingSlot);
+                    }
+
+                    component.StorageSlots[i] = existingSlot;
+
+                    continue;
+                }
+                _itemSlotsSystem.AddItemSlot(uid, storageSlotId, storageSlot);
+            }
+
+            // If slots already contain items (e.g. restored from ship snapshot),
+            // do not spawn pack contents again.
+            var hasLoadedInventory = false;
+            for (var i = 0; i < component.NumSlots; i++)
+            {
+                var storageSlotId = ReagentDispenserComponent.BaseStorageSlotId + i;
+                if (_itemSlotsSystem.GetItemOrNull(uid, storageSlotId) is { Valid: true })
+                {
+                    hasLoadedInventory = true;
+                    break;
+                }
+
+                if (_containers.TryGetContainer(uid, storageSlotId, out var container)
+                    && container is ContainerSlot slot
+                    && slot.ContainedEntity is { Valid: true })
+                {
+                    hasLoadedInventory = true;
+                    break;
+                }
+            }
+
             // Frontier: spawn slot contents
-            if (component.PackPrototypeId is not null
+            if (!hasLoadedInventory
+                && component.PackPrototypeId is not null
                 && _prototypeManager.TryIndex(component.PackPrototypeId, out ReagentDispenserInventoryPrototype? packPrototype))
             {
-                for (var i = 0; i < packPrototype.Inventory.Count && i < component.StorageSlots.Count; i++)
+                for (var i = 0; i < packPrototype.Inventory.Count && i < component.NumSlots; i++)
                 {
-                    if (component.StorageSlots[i].ContainerSlot == null)
+                    var storageSlotId = ReagentDispenserComponent.BaseStorageSlotId + i;
+                    if (!_itemSlotsSystem.TryGetSlot(uid, storageSlotId, out var slot) || slot.ContainerSlot == null)
                         continue;
+
                     var item = Spawn(packPrototype.Inventory[i], Transform(uid).Coordinates);
-                    if (!_containers.Insert(item, component.StorageSlots[i].ContainerSlot!)) // ContainerSystem.Insert is silent.
+                    if (!_containers.Insert(item, slot.ContainerSlot)) // ContainerSystem.Insert is silent.
                         QueueDel(item);
                 }
             }
