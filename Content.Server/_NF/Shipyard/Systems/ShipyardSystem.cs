@@ -5,6 +5,7 @@ using Content.Server.Cargo.Systems;
 using Content.Server._Crescent.ShipShields;
 using Content.Server.DeviceNetwork.Systems;
 using Content.Server.Gravity;
+using Content.Server.Power.EntitySystems;
 using Content.Server.Salvage;
 using Content.Server.Station.Systems;
 using Content.Shared._NF.Shipyard.Components;
@@ -51,6 +52,7 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
     [Dependency] private readonly GravityGeneratorSystem _gravityGenerators = default!;
     [Dependency] private readonly ShipShieldsSystem _shipShields = default!;
     [Dependency] private readonly DeviceNetworkSystem _deviceNetwork = default!;
+    [Dependency] private readonly ExtensionCableSystem _extensionCables = default!;
     [Dependency] private readonly SalvageSystem _salvage = default!;
     [Dependency] private readonly StationJobsSystem _stationJobs = default!;
 

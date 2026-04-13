@@ -8,6 +8,29 @@ namespace Content.Server.Power.EntitySystems
 {
     public sealed class ExtensionCableSystem : EntitySystem
     {
+        public void ResyncGridConnections(EntityUid gridUid)
+        {
+            var providerQuery = EntityQueryEnumerator<ExtensionCableProviderComponent>();
+            while (providerQuery.MoveNext(out var uid, out var provider))
+            {
+                if (Transform(uid).GridUid != gridUid)
+                    continue;
+
+                Disconnect(uid, provider);
+                Connect(uid, provider);
+            }
+
+            var receiverQuery = EntityQueryEnumerator<ExtensionCableReceiverComponent>();
+            while (receiverQuery.MoveNext(out var uid, out var receiver))
+            {
+                if (Transform(uid).GridUid != gridUid)
+                    continue;
+
+                Disconnect(uid, receiver);
+                Connect(uid, receiver);
+            }
+        }
+
         public override void Initialize()
         {
             base.Initialize();

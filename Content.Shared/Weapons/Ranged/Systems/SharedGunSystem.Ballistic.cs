@@ -9,6 +9,7 @@ using Content.Shared.Whitelist;
 using Robust.Shared.Containers;
 using Robust.Shared.Map;
 using Robust.Shared.Serialization;
+using System.Linq;
 
 namespace Content.Shared.Weapons.Ranged.Systems;
 
@@ -21,6 +22,7 @@ public abstract partial class SharedGunSystem
     protected virtual void InitializeBallistic()
     {
         SubscribeLocalEvent<BallisticAmmoProviderComponent, ComponentInit>(OnBallisticInit);
+        SubscribeLocalEvent<BallisticAmmoProviderComponent, ComponentStartup>(OnBallisticStartup);
         SubscribeLocalEvent<BallisticAmmoProviderComponent, MapInitEvent>(OnBallisticMapInit);
         SubscribeLocalEvent<BallisticAmmoProviderComponent, TakeAmmoEvent>(OnBallisticTakeAmmo);
         SubscribeLocalEvent<BallisticAmmoProviderComponent, CheckShootPrototypeEvent>(OnBallisticCheckProto); // Mono
@@ -260,13 +262,23 @@ public abstract partial class SharedGunSystem
     private void OnBallisticInit(EntityUid uid, BallisticAmmoProviderComponent component, ComponentInit args)
     {
         component.Container = Containers.EnsureContainer<Container>(uid, "ballistic-ammo");
+        SyncBallisticContainerState(component);
         // TODO: This is called twice though we need to support loading appearance data (and we need to call it on MapInit
         // to ensure it's correct).
         UpdateBallisticAppearance(uid, component);
     }
 
+    private void OnBallisticStartup(EntityUid uid, BallisticAmmoProviderComponent component, ComponentStartup args)
+    {
+        SyncBallisticContainerState(component);
+        UpdateBallisticAppearance(uid, component);
+        UpdateAmmoCount(uid);
+    }
+
     private void OnBallisticMapInit(EntityUid uid, BallisticAmmoProviderComponent component, MapInitEvent args)
     {
+        SyncBallisticContainerState(component);
+
         // TODO this should be part of the prototype, not set on map init.
         // Alternatively, just track spawned count, instead of unspawned count.
         if (component.Proto != null)
@@ -280,6 +292,20 @@ public abstract partial class SharedGunSystem
     protected int GetBallisticShots(BallisticAmmoProviderComponent component)
     {
         return component.Entities.Count + (component.InfiniteUnspawned ? 0 : component.UnspawnedCount); // Mono
+    }
+
+    private static void SyncBallisticContainerState(BallisticAmmoProviderComponent component)
+    {
+        if (component.Container == null)
+            return;
+
+        var contained = component.Container.ContainedEntities.ToList();
+
+        if (component.Entities.SequenceEqual(contained))
+            return;
+
+        component.Entities.Clear();
+        component.Entities.AddRange(contained);
     }
 
     private void OnBallisticTakeAmmo(EntityUid uid, BallisticAmmoProviderComponent component, TakeAmmoEvent args)

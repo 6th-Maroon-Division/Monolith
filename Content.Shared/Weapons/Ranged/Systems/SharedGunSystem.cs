@@ -350,7 +350,9 @@ public abstract partial class SharedGunSystem : EntitySystem
     protected void AttemptShoot(EntityUid user, EntityUid gunUid, GunComponent gun)
     {
         if (TryComp<AutoShootGunComponent>(gunUid, out var auto) && !auto.CanFire && auto.RemainingTime <= TimeSpan.FromSeconds(0)) // Frontier // Mono
+        {
             return; // Frontier
+        }
 
         if (gun.FireRateModified <= 0f ||
             !_actionBlockerSystem.CanAttack(user))
@@ -361,7 +363,9 @@ public abstract partial class SharedGunSystem : EntitySystem
         var toCoordinates = gun.ShootCoordinates;
 
         if (toCoordinates == null)
+        {
             return;
+        }
 
         var curTime = Timing.CurTime;
 
@@ -373,16 +377,22 @@ public abstract partial class SharedGunSystem : EntitySystem
         };
         RaiseLocalEvent(gunUid, ref prevention);
         if (prevention.Cancelled)
+        {
             return;
+        }
 
         RaiseLocalEvent(user, ref prevention);
         if (prevention.Cancelled)
+        {
             return;
+        }
 
         // Need to do this to play the clicking sound for empty automatic weapons
         // but not play anything for burst fire.
         if (gun.NextFire > curTime)
+        {
             return;
+        }
 
         var fireRate = TimeSpan.FromSeconds(1f / gun.FireRateModified);
 
