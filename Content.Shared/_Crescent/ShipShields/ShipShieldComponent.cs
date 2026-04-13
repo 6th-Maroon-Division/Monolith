@@ -1,6 +1,6 @@
 namespace Content.Shared._Crescent.ShipShields;
 
-[RegisterComponent]
+[RegisterComponent, UnsavedComponent]
 public sealed partial class ShipShieldComponent : Component
 {
     public EntityUid? Source;

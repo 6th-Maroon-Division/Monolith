@@ -788,6 +788,7 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
 
         _shuttle.TryFTLDock(shuttleUid, shuttle, targetGrid.Value);
         _gravityGenerators.ResyncGridGravity(shuttleUid);
+        _shipShields.ResyncGridShields(shuttleUid);
 
         var ownerName = string.IsNullOrWhiteSpace(record.OwnerName) ? Name(player).Trim() : record.OwnerName;
         var deedID = EnsureComp<ShuttleDeedComponent>(targetId);

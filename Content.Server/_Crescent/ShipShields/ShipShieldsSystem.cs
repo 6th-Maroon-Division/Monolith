@@ -111,6 +111,52 @@ public sealed partial class ShipShieldsSystem : EntitySystem
         InitializeEmitters();
     }
 
+    public void ResyncGridShields(EntityUid gridUid)
+    {
+        if (TryComp<ShipShieldedComponent>(gridUid, out var shielded) && !Exists(shielded.Shield))
+            RemComp<ShipShieldedComponent>(gridUid);
+
+        var query = EntityQueryEnumerator<ShipShieldEmitterComponent, ApcPowerReceiverComponent, TransformComponent>();
+        while (query.MoveNext(out var uid, out var emitter, out var power, out var xform))
+        {
+            if (xform.GridUid != gridUid)
+                continue;
+
+            if (emitter.Shield is { } existingShield && !Exists(existingShield))
+                emitter.Shield = null;
+
+            if (emitter.Shielded is { } existingShielded && existingShielded != gridUid)
+                emitter.Shielded = null;
+
+            if (!power.Powered)
+            {
+                emitter.Recharging = true;
+            }
+            else if (emitter.Damage <= 0f && emitter.OverloadAccumulator <= 0f)
+            {
+                emitter.Recharging = false;
+            }
+
+            if ((emitter.Recharging || emitter.OverloadAccumulator > 0f) && emitter.Shield is not null)
+            {
+                UnshieldEntity(gridUid);
+                emitter.Shield = null;
+                emitter.Shielded = null;
+                continue;
+            }
+
+            if (!emitter.Recharging && emitter.Shield is null && emitter.OverloadAccumulator < 1f)
+            {
+                var shield = ShieldEntity(gridUid, uid);
+                if (shield != EntityUid.Invalid)
+                {
+                    emitter.Shield = shield;
+                    emitter.Shielded = gridUid;
+                }
+            }
+        }
+    }
+
 
     // Mono notes: THIS CODE BASICALLY DOES NOT WORK (especially for raycasted projectiles)
     private void OnCollide(EntityUid uid, ShipShieldComponent component, StartCollideEvent args)
@@ -188,7 +234,14 @@ public sealed partial class ShipShieldsSystem : EntitySystem
     private EntityUid ShieldEntity(EntityUid entity, EntityUid? source = null, MapGridComponent? mapGrid = null)
     {
         if (TryComp<ShipShieldedComponent>(entity, out var existingShielded))
-            return existingShielded.Shield;
+        {
+            // If the shield entity is valid and alive, return it.
+            if (Exists(existingShielded.Shield))
+                return existingShielded.Shield;
+
+            // Stale component from a pre-UnsavedComponent save snapshot — clear it and re-create.
+            RemComp<ShipShieldedComponent>(entity);
+        }
 
         if (!Resolve(entity, ref mapGrid, false))
             return EntityUid.Invalid;
