@@ -116,7 +116,7 @@ public sealed class SpreaderSystem : EntitySystem
         if (_spreaderGridQuery.TryComp(xform.GridUid, out var spreaderGrid)
             && _spreaderQuery.TryComp(spreader, out var comp))
         {
-            spreaderGrid.SpreadQueues[comp.Id].Enqueue((spreader, comp));
+            spreaderGrid.SpreadQueues[comp.Id].Enqueue(spreader);
         }
     }
 
@@ -137,7 +137,7 @@ public sealed class SpreaderSystem : EntitySystem
             if (!_spreaderQuery.TryComp(ent, out var spreader))
                 continue;
 
-            spreaderGrid.SpreadQueues[spreader.Id].Enqueue((ent, spreader));
+            spreaderGrid.SpreadQueues[spreader.Id].Enqueue(ent);
         }
     }
 
@@ -167,22 +167,25 @@ public sealed class SpreaderSystem : EntitySystem
                 var count = spreadQueue.Count;
                 for (var i = 0; i < count && updates > 0; i++)
                 {
-                    var ent = spreadQueue.Dequeue();
+                    var entUid = spreadQueue.Dequeue();
 
-                    if (TerminatingOrDeleted(ent) || !_activeQuery.HasComp(ent))
+                    if (TerminatingOrDeleted(entUid) || !_activeQuery.HasComp(entUid))
                         continue;
 
-                    var xform = Transform(ent);
+                    if (!_spreaderQuery.TryComp(entUid, out var spreaderComp))
+                        continue;
+
+                    var xform = Transform(entUid);
                     if (xform.GridUid != gridUid)
                     {
-                        InitSpreader(ent);
+                        InitSpreader(entUid);
                         continue;
                     }
 
                     // try to update the specified amount of active spreaders
-                    Spread(ent, (gridUid, mapGrid), xform, spacedSpread, ref updates);
+                    Spread((entUid, spreaderComp), (gridUid, mapGrid), xform, spacedSpread, ref updates);
 
-                    spreadQueue.Enqueue(ent); // requeue it
+                    spreadQueue.Enqueue(entUid); // requeue it
                 }
             }
         }
