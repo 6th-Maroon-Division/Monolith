@@ -147,3 +147,14 @@ Entries:
   id: 13
   time: '2026-04-13T06:19:39.0000000+00:00'
   url: https://github.com/6th-Maroon-Division/Monolith/pull/34
+- author: chilla55
+  changes:
+    - type: Fix
+      message: >-
+        Fixed chemical dispensers on stored ships restoring empty after ship
+        retrieval.
+    - type: Fix
+      message: Fixed spreader grid state causing serializer errors during ship save.
+  id: 14
+  time: '2026-04-13T16:39:54.0000000+00:00'
+  url: https://github.com/6th-Maroon-Division/Monolith/pull/37
