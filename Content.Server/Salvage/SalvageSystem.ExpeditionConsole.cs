@@ -254,6 +254,32 @@ public sealed partial class SalvageSystem
         }
     }
 
+    public void ResyncGridExpeditionConsoles(EntityUid gridUid)
+    {
+        var hasConsole = false;
+        var query = EntityQueryEnumerator<SalvageExpeditionConsoleComponent, TransformComponent>();
+        while (query.MoveNext(out _, out _, out var xform))
+        {
+            if (xform.GridUid != gridUid)
+                continue;
+
+            hasConsole = true;
+            break;
+        }
+
+        if (!hasConsole)
+            return;
+
+        if (_station.GetOwningStation(gridUid) is not { Valid: true } stationUid)
+            return;
+
+        var data = EnsureComp<SalvageExpeditionDataComponent>(stationUid);
+        if (!data.Claimed && !data.Cooldown && data.Missions.Count == 0)
+            GenerateMissions(data);
+
+        UpdateConsoles(stationUid, data);
+    }
+
     private void UpdateConsole(Entity<SalvageExpeditionConsoleComponent> component)
     {
         var station = _station.GetOwningStation(component);
