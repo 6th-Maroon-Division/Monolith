@@ -14,5 +14,5 @@ public sealed partial class SpreaderGridComponent : Component
     public float UpdateSpacing = 1f;
 
     [DataField]
-    public Dictionary<ProtoId<EdgeSpreaderPrototype>, Queue<Entity<EdgeSpreaderComponent>>> SpreadQueues = new();
+    public Dictionary<ProtoId<EdgeSpreaderPrototype>, Queue<EntityUid>> SpreadQueues = new();
 }
