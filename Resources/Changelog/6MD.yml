@@ -134,3 +134,16 @@ Entries:
   id: 12
   time: '2026-04-13T06:11:13.0000000+00:00'
   url: https://github.com/6th-Maroon-Division/Monolith/pull/30
+- author: chilla55
+  changes:
+    - type: Fix
+      message: >-
+        Fixed restored ships losing station records and vessel job setup after
+        retrieval.
+    - type: Fix
+      message: >-
+        Fixed restored ships appearing under station instead of crew in
+        latejoin.
+  id: 13
+  time: '2026-04-13T06:19:39.0000000+00:00'
+  url: https://github.com/6th-Maroon-Division/Monolith/pull/34
