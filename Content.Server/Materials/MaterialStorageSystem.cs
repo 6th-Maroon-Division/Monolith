@@ -11,6 +11,7 @@ using Content.Shared.ActionBlocker;
 using Content.Shared.Construction;
 using Content.Shared.Database;
 using JetBrains.Annotations;
+using Robust.Server.GameObjects;
 using Robust.Shared.Audio.Systems;
 using Robust.Shared.Map;
 using Robust.Shared.Prototypes;
@@ -31,6 +32,7 @@ public sealed class MaterialStorageSystem : SharedMaterialStorageSystem
     [Dependency] private readonly SharedAudioSystem _audio = default!;
     [Dependency] private readonly SharedPopupSystem _popup = default!;
     [Dependency] private readonly StackSystem _stackSystem = default!;
+    [Dependency] private new readonly AppearanceSystem _appearance = default!;
 
     public override void Initialize()
     {
@@ -57,6 +59,25 @@ public sealed class MaterialStorageSystem : SharedMaterialStorageSystem
             return;
 
         DropAll(ent);
+    }
+
+    // Mono
+    /// <summary>
+    /// Clears any stale insertion animation state from all material storage entities on a grid.
+    /// Called after a ship is retrieved or restored from a snapshot, since MapInitEvent does not
+    /// fire on midround loads and the saved appearance data may have Inserting = true.
+    /// </summary>
+    public void ResyncGridMaterialStorage(EntityUid gridUid)
+    {
+        var query = EntityQueryEnumerator<MaterialStorageComponent, TransformComponent>();
+        while (query.MoveNext(out var uid, out _, out var xform))
+        {
+            if (xform.GridUid != gridUid)
+                continue;
+
+            RemComp<InsertingMaterialStorageComponent>(uid);
+            _appearance.SetData(uid, MaterialStorageVisuals.Inserting, false);
+        }
     }
 
     // Mono

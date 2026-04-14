@@ -10,6 +10,7 @@ using Content.Server.GameTicking;
 using Content.Server.Hands.Systems;
 using Content.Server.Power.EntitySystems;
 using Content.Server.Mech.Systems;
+using Content.Server.Materials;
 using Content.Server.Salvage;
 using Content.Server.Shuttles.Components;
 using Content.Server._Mono.FireControl;
@@ -83,6 +84,7 @@ public sealed partial class PersistenceAnchorSystem : EntitySystem
     [Dependency] private readonly SalvageSystem _salvage = default!;
     [Dependency] private readonly FireControlSystem _fireControl = default!;
     [Dependency] private readonly MechSystem _mech = default!;
+    [Dependency] private readonly MaterialStorageSystem _materialStorage = default!;
 
     private readonly Dictionary<EntityUid, string> _gridToAnchor = new();
     private readonly Dictionary<string, EntityUid> _anchorToGrid = new();
@@ -388,6 +390,7 @@ public sealed partial class PersistenceAnchorSystem : EntitySystem
             _fireControl.ResyncGridFireControl(grid);
             _dockingSystem.ResyncGridDockAirlocks(grid);
             _mech.ResyncGridMechs(grid);
+            _materialStorage.ResyncGridMaterialStorage(grid);
 
             SaveSnapshot(anchor, component, immediate: true);
             _pendingRestoreHealAnchors.Remove(anchorId);
