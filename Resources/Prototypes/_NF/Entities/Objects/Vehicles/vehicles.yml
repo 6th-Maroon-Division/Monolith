@@ -51,6 +51,11 @@
             - Storage
     sprite: _NF/Objects/Vehicles/atv.rsi
   - type: Appearance
+  - type: ContainerContainer
+    containers:
+      key_slot: !type:ContainerSlot
+      storagebase: !type:Container
+      bag: !type:ContainerSlot
   - type: Strap
     unbuckleDistanceSquared: 0.09 # (30 cm)^2
   - type: Tag # Mono
@@ -75,6 +80,7 @@
   - type: ContainerContainer
     containers:
       storagebase: !type:Container
+      key_slot: !type:ContainerSlot
   - type: UserInterface
     interfaces:
       enum.StorageUiKey.Key:
@@ -294,6 +300,7 @@
     containers:
       storagebase: !type:Container
         ents: []
+      key_slot: !type:ContainerSlot {}
       mop_slot: !type:ContainerSlot {}
       plunger_slot: !type:ContainerSlot {}
       wetfloorsign_slot4: !type:ContainerSlot {}
@@ -400,6 +407,11 @@
             - Gun
     sprite: _NF/Objects/Vehicles/hoverbike.rsi
   - type: Appearance
+  - type: ContainerContainer
+    containers:
+      storagebase: !type:Container
+      key_slot: !type:ContainerSlot
+      mailgun: !type:ContainerSlot
   - type: PointLight
     enabled: false
     radius: 6
@@ -490,6 +502,11 @@
             - Stunbaton
     sprite: _NF/Objects/Vehicles/hoverbike.rsi
   - type: Appearance
+  - type: ContainerContainer
+    containers:
+      storagebase: !type:Container
+      key_slot: !type:ContainerSlot
+      nfsdbaton: !type:ContainerSlot
   - type: RotatingLight
     speed: 190
   - type: PointLight
@@ -577,6 +594,11 @@
             - Gun
     sprite: _NF/Objects/Vehicles/hoverbike.rsi
   - type: Appearance
+  - type: ContainerContainer
+    containers:
+      storagebase: !type:Container
+      key_slot: !type:ContainerSlot
+      piratemusket: !type:ContainerSlot
 
 - type: entity
   parent: VehicleHoverbikePirate
@@ -655,6 +677,11 @@
             - Gun
     sprite: _NF/Objects/Vehicles/hoverbike.rsi
   - type: Appearance
+  - type: ContainerContainer
+    containers:
+      storagebase: !type:Container
+      key_slot: !type:ContainerSlot
+      syndicategun: !type:ContainerSlot
   - type: PointLight
     enabled: false
     color: green

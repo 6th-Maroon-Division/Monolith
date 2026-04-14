@@ -70,6 +70,31 @@
       machine_board: !type:Container
       machine_parts: !type:Container
       beakerSlot: !type:ContainerSlot
+      ReagentDispenser-storageSlot0: !type:ContainerSlot
+      ReagentDispenser-storageSlot1: !type:ContainerSlot
+      ReagentDispenser-storageSlot2: !type:ContainerSlot
+      ReagentDispenser-storageSlot3: !type:ContainerSlot
+      ReagentDispenser-storageSlot4: !type:ContainerSlot
+      ReagentDispenser-storageSlot5: !type:ContainerSlot
+      ReagentDispenser-storageSlot6: !type:ContainerSlot
+      ReagentDispenser-storageSlot7: !type:ContainerSlot
+      ReagentDispenser-storageSlot8: !type:ContainerSlot
+      ReagentDispenser-storageSlot9: !type:ContainerSlot
+      ReagentDispenser-storageSlot10: !type:ContainerSlot
+      ReagentDispenser-storageSlot11: !type:ContainerSlot
+      ReagentDispenser-storageSlot12: !type:ContainerSlot
+      ReagentDispenser-storageSlot13: !type:ContainerSlot
+      ReagentDispenser-storageSlot14: !type:ContainerSlot
+      ReagentDispenser-storageSlot15: !type:ContainerSlot
+      ReagentDispenser-storageSlot16: !type:ContainerSlot
+      ReagentDispenser-storageSlot17: !type:ContainerSlot
+      ReagentDispenser-storageSlot18: !type:ContainerSlot
+      ReagentDispenser-storageSlot19: !type:ContainerSlot
+      ReagentDispenser-storageSlot20: !type:ContainerSlot
+      ReagentDispenser-storageSlot21: !type:ContainerSlot
+      ReagentDispenser-storageSlot22: !type:ContainerSlot
+      ReagentDispenser-storageSlot23: !type:ContainerSlot
+      ReagentDispenser-storageSlot24: !type:ContainerSlot
   - type: StaticPrice
     price: 1000
   - type: WiresPanel

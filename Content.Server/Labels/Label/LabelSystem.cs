@@ -59,7 +59,15 @@ namespace Content.Server.Labels
 
         private void OnComponentInit(EntityUid uid, PaperLabelComponent component, ComponentInit args)
         {
-            _itemSlotsSystem.AddItemSlot(uid, ContainerName, component.LabelSlot);
+            if (_itemSlotsSystem.TryGetSlot(uid, ContainerName, out var existingSlot))
+            {
+                _itemSlotsSystem.RebindItemSlot(uid, ContainerName, existingSlot);
+                component.LabelSlot = existingSlot;
+            }
+            else
+            {
+                _itemSlotsSystem.AddItemSlot(uid, ContainerName, component.LabelSlot);
+            }
 
             UpdateAppearance((uid, component));
         }

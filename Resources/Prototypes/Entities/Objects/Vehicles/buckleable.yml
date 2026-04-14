@@ -69,6 +69,10 @@
         layer:
         - TableLayer
   - type: Appearance
+  - type: ContainerContainer
+    containers:
+      key_slot: !type:ContainerSlot
+      storagebase: !type:Container
   - type: ItemSlots
     slots:
       key_slot: #this slot name is important
@@ -373,7 +377,7 @@
     southOver: true
     northOverride: -0.15
     southOverride: 0.15
-    hasKey: true
+    hasKey: false
     hornSound:
       path: /Audio/Effects/Vehicle/bicyclebell.ogg
   - type: Sprite
@@ -418,6 +422,9 @@
   components:
   - type: Foldable
     folded: true
+  - type: Strap
+    buckleOffset: "0,0"
+    enabled: false
 
 - type: entity
   id: VehicleWheelchair
@@ -427,7 +434,7 @@
   components:
     - type: Vehicle
       northOver: true
-      hasKey: true
+      hasKey: false
       northOverride: 0
       southOverride: 0
     - type: Sprite
@@ -467,3 +474,6 @@
   components:
     - type: Foldable
       folded: true
+    - type: Strap
+      buckleOffset: "0,0"
+      enabled: false

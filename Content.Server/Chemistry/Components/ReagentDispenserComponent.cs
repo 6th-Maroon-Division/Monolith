@@ -52,10 +52,10 @@ namespace Content.Server.Chemistry.Components
         /// <summary>
         /// List of storage slots that were created at MapInit.
         /// </summary>
-        [DataField]
+        [ViewVariables, NonSerialized]
         public List<string> StorageSlotIds = new List<string>();
 
-        [DataField]
+        [ViewVariables, NonSerialized]
         public List<ItemSlot> StorageSlots = new List<ItemSlot>();
 
         [DataField("clickSound"), ViewVariables(VVAccess.ReadWrite)]
