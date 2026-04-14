@@ -1,7 +1,15 @@
+using Content.Server.DeviceLinking.Systems;
 using Content.Server.Doors.Systems;
+using Content.Server._NF.Atmos.Components;
+using Content.Server.NodeContainer;
 using Content.Server.NPC.Pathfinding;
+using Content.Server.NodeContainer.EntitySystems;
+using Content.Server.NodeContainer.Nodes;
+using Content.Server.Power.Nodes;
 using Content.Server.Shuttles.Components;
 using Content.Server.Shuttles.Events;
+using Content.Shared._NF.Atmos.Visuals;
+using Content.Shared._NF.Power.Components;
 using Content.Shared.Doors;
 using Content.Shared.Doors.Components;
 using Content.Shared.Popups;
@@ -14,6 +22,7 @@ using Robust.Shared.Physics.Components;
 using Robust.Shared.Physics.Dynamics.Joints;
 using Robust.Shared.Physics.Systems;
 using Robust.Shared.Utility;
+using Robust.Server.GameObjects;
 
 namespace Content.Server.Shuttles.Systems
 {
@@ -21,8 +30,12 @@ namespace Content.Server.Shuttles.Systems
     {
         [Dependency] private IMapManager _mapManager = default!;
         [Dependency] private SharedMapSystem _mapSystem = default!;
+        [Dependency] private readonly AppearanceSystem _appearance = default!;
+        [Dependency] private readonly DeviceLinkSystem _deviceLink = default!;
         [Dependency] private DoorSystem _doorSystem = default!;
         [Dependency] private EntityLookupSystem _lookup = default!;
+        [Dependency] private readonly NodeContainerSystem _nodeContainer = default!;
+        [Dependency] private readonly NodeGroupSystem _nodeGroup = default!;
         [Dependency] private PathfindingSystem _pathfinding = default!;
         [Dependency] private ShuttleConsoleSystem _console = default!;
         [Dependency] private SharedJointSystem _jointSystem = default!;
@@ -95,6 +108,73 @@ namespace Content.Server.Shuttles.Systems
                 _doorSystem.TryClose(entity);
                 _doorSystem.SetBoltsDown((entity.Owner, entity.Comp2), enabled);
             }
+        }
+
+        public void ResyncGridDockAirlocks(EntityUid gridUid)
+        {
+            _dockingSet.Clear();
+            _lookup.GetChildEntities(gridUid, _dockingSet);
+
+            foreach (var dock in _dockingSet)
+            {
+                var uid = dock.Owner;
+                var docking = dock.Comp;
+
+                var validDock = docking.DockedWith is { } otherUid &&
+                                Exists(otherUid) &&
+                                TryComp<DockingComponent>(otherUid, out var otherDock) &&
+                                otherDock.DockedWith == uid;
+
+                if (validDock)
+                    continue;
+
+                if (docking.DockedWith != null || docking.DockJoint != null || docking.DockJointId != null)
+                {
+                    docking.DockedWith = null;
+                    docking.DockJoint = null;
+                    docking.DockJointId = null;
+                    Dirty(uid, docking);
+                }
+
+                if (TryComp<DockingSignalControlComponent>(uid, out var signalControl))
+                    _deviceLink.SendSignal(uid, signalControl.DockStatusSignalPort, signal: false);
+
+                if (TryComp<DockablePipeComponent>(uid, out var dockablePipe) &&
+                    TryComp<NodeContainerComponent>(uid, out var nodeContainer) &&
+                    !string.IsNullOrEmpty(dockablePipe.DockNodeName) &&
+                    _nodeContainer.TryGetNode(nodeContainer, dockablePipe.DockNodeName, out DockablePipeNode? dockablePipeNode))
+                {
+                    _nodeGroup.QueueNodeRemove(dockablePipeNode);
+                    dockablePipeNode.Air.Clear();
+                    _appearance.SetData(uid, DockablePipeVisuals.Docked, false);
+                }
+
+                if (TryComp<GaslockPowerBridgeComponent>(uid, out var gaslockBridge) &&
+                    TryComp<NodeContainerComponent>(uid, out var bridgeNodes))
+                {
+                    QueueDockBridgeNodeRemove(bridgeNodes, gaslockBridge.HvDockNode);
+                    QueueDockBridgeNodeRemove(bridgeNodes, gaslockBridge.MvDockNode);
+                    QueueDockBridgeNodeRemove(bridgeNodes, gaslockBridge.LvDockNode);
+                }
+
+                if (TryComp<DoorBoltComponent>(uid, out var bolts) && bolts.BoltsDown)
+                    _doorSystem.SetBoltsDown((uid, bolts), false);
+
+                if (TryComp<DoorComponent>(uid, out var door))
+                {
+                    _doorSystem.TryClose(uid, door);
+                    door.ChangeAirtight = true;
+                    Dirty(uid, door);
+                }
+            }
+        }
+
+        private void QueueDockBridgeNodeRemove(NodeContainerComponent nodeContainer, string nodeName)
+        {
+            if (!nodeContainer.Nodes.TryGetValue(nodeName, out var node) || node is not CableDeviceNode cableNode)
+                return;
+
+            _nodeGroup.QueueNodeRemove(cableNode);
         }
 
         private void OnAutoClose(EntityUid uid, DockingComponent component, BeforeDoorAutoCloseEvent args)
