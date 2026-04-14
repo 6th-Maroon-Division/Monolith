@@ -183,3 +183,20 @@ Entries:
   id: 16
   time: '2026-04-13T18:20:46.0000000+00:00'
   url: https://github.com/6th-Maroon-Division/Monolith/pull/40
+- author: chilla55
+  changes:
+    - type: Fix
+      message: >-
+        Fixed shipyard shuttle retrieval failing to fully restore mech and
+        vehicle runtime state.
+    - type: Fix
+      message: >-
+        Fixed vehicles losing key behavior and ambience after shipyard
+        retrieval.
+    - type: Fix
+      message: >-
+        Fixed mechs showing incorrect integrity/energy and losing ranged weapon
+        functionality after shipyard retrieval.
+  id: 17
+  time: '2026-04-14T13:32:25.0000000+00:00'
+  url: https://github.com/6th-Maroon-Division/Monolith/pull/41
