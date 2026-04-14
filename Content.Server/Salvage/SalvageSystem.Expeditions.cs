@@ -327,6 +327,7 @@ public sealed partial class SalvageSystem
             this,
             _transform,
             _mapSystem,
+            _cfgManager,
             station,
             coordinatesDisk,
             missionParams,

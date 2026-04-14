@@ -31,6 +31,7 @@ using Content.Shared.Shuttles.Components;
 using Content.Shared.Storage;
 using Content.Server.Weather;
 using Content.Shared.Weather;
+using Content.Shared._NF.CCVar;
 using Robust.Shared.Map;
 using Robust.Shared.Map.Components;
 using Robust.Shared.Physics.Components;
@@ -38,6 +39,7 @@ using Robust.Shared.Prototypes;
 using Robust.Shared.Random;
 using Robust.Shared.Timing;
 using Robust.Shared.GameObjects;
+using Robust.Shared.Configuration;
 using Content.Shared._Crescent.SpaceBiomes;
 
 namespace Content.Server.Salvage;
@@ -58,6 +60,7 @@ public sealed class SpawnSalvageMissionJob : Job<bool>
     private readonly SalvageSystem _salvage;
     private readonly SharedTransformSystem _xforms;
     private readonly SharedMapSystem _map;
+    private readonly IConfigurationManager _cfg;
 
     public readonly EntityUid Station;
     public readonly EntityUid? CoordinatesDisk;
@@ -92,6 +95,7 @@ public sealed class SpawnSalvageMissionJob : Job<bool>
         SalvageSystem salvage,
         SharedTransformSystem xform,
         SharedMapSystem map,
+        IConfigurationManager cfg,
         EntityUid station,
         EntityUid? coordinatesDisk,
         SalvageMissionParams missionParams,
@@ -111,6 +115,7 @@ public sealed class SpawnSalvageMissionJob : Job<bool>
         _salvage = salvage;
         _xforms = xform;
         _map = map;
+        _cfg = cfg;
         Station = station;
         CoordinatesDisk = coordinatesDisk;
         _missionParams = missionParams;
@@ -194,14 +199,29 @@ public sealed class SpawnSalvageMissionJob : Job<bool>
 
             // Atmos
             var air = _prototypeManager.Index<SalvageAirMod>(mission.Air);
-            // copy into a new array since the yml deserialization discards the fixed length
+            var breathableAtmos = _cfg.GetCVar(NFCCVars.SalvageExpeditionBreathableAtmos);
             var moles = new float[Atmospherics.AdjustedNumberOfGases];
-            air.Gases.CopyTo(moles, 0);
-            var atmos = _entManager.EnsureComponent<MapAtmosphereComponent>(mapUid);
-            _entManager.System<AtmosphereSystem>().SetMapSpace(mapUid, air.Space, atmos);
-            _entManager.System<AtmosphereSystem>().SetMapGasMixture(mapUid, new GasMixture(moles, mission.Temperature), atmos);
+            var setSpace = air.Space;
+            var setTemperature = mission.Temperature;
 
-            if (!air.Space)
+            if (breathableAtmos)
+            {
+                setSpace = false;
+                setTemperature = Atmospherics.T20C;
+                moles[(int) Gas.Oxygen] = Atmospherics.OxygenMolesStandard;
+                moles[(int) Gas.Nitrogen] = Atmospherics.NitrogenMolesStandard;
+            }
+            else
+            {
+                // Copy into a new array since yml deserialization discards fixed length arrays.
+                air.Gases.CopyTo(moles, 0);
+            }
+
+            var atmos = _entManager.EnsureComponent<MapAtmosphereComponent>(mapUid);
+            _entManager.System<AtmosphereSystem>().SetMapSpace(mapUid, setSpace, atmos);
+            _entManager.System<AtmosphereSystem>().SetMapGasMixture(mapUid, new GasMixture(moles, setTemperature), atmos);
+
+            if (!setSpace)
             {
                 var weather = _entManager.EnsureComponent<WeatherComponent>(mapUid);
                 _entManager.System<WeatherSystem>().SetWeather(mapId, _prototypeManager.Index<WeatherPrototype>(missionWeather.WeatherPrototype), null);
