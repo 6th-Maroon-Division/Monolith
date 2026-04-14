@@ -226,3 +226,12 @@ Entries:
   id: 19
   time: '2026-04-14T14:21:04.0000000+00:00'
   url: https://github.com/6th-Maroon-Division/Monolith/pull/43
+- author: chilla55
+  changes:
+    - type: Fix
+      message: >-
+        Fixed prototype serialization mutations that were causing integration
+        test failures.
+  id: 20
+  time: '2026-04-14T17:40:43.0000000+00:00'
+  url: https://github.com/6th-Maroon-Division/Monolith/pull/45
