@@ -96,6 +96,17 @@
       mech-equipment-container: !type:Container
       mech-battery-slot: !type:ContainerSlot
       paper_label: !type:ContainerSlot # Goobstation
+  - type: ItemSlots
+    slots:
+      paper_label:
+        insertVerbText: Attach Label
+        ejectVerbText: Remove Label
+        whitelist:
+          components:
+          - Paper
+        blacklist:
+          tags:
+          - Book
   - type: Damageable
     damageContainer: StructuralInorganic # Mono
     damageModifierSet: MechArmorLight # Mono
