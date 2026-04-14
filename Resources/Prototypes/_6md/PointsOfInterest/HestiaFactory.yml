@@ -1,0 +1,47 @@
+# Author Info
+# GitHub:
+# Discord: Checkraze
+
+# Maintainer Info
+# GitHub: ???
+# Discord: ???
+
+# Notes:
+#
+- type: pointOfInterest
+  id: HestiaFactory
+  parent: [BasePOI, BaseRepairablePOI]
+  name: 'Hestia Factory'
+  minimumDistance: 5650
+  maximumDistance: 7400
+  spawnGroup: Required
+  gridPath: /Maps/_6MD/POI/HestiaFactory.yml
+  addComponents:
+  - type: IFF
+    color: "#3737F8"
+  - type: SolarPoweredGrid
+    trackOnInit: true
+    doNotCull: true
+
+- type: gameMap
+  id: HestiaFactory
+  mapName: 'Hestia Factory'
+  mapPath: /Maps/_6MD/POI/HestiaFactory.yml
+  minPlayers: 0
+  stations:
+    HestiaFactory:
+      stationProto: RecordsFrontierOutpost
+      components:
+        - type: StationNameSetup
+          mapNameTemplate: 'Hestia Factory'
+        - type: ExtraStationInformation
+          icon: /Textures/_NF/Interface/StationIcons/banner_engineering.png
+          stationSubtext: 6md-lobby-hestia-factory-subtext
+          stationDescription: 6md-lobby-hestia-factory-description
+          lobbySortOrder: 5
+        - type: StationJobs
+          availableJobs:
+            PlantManager: [ 1, 1 ]
+            PlantTechnician: [ 0, 0 ]
+            Contractor: [ 0, 0 ]
+            Pilot: [ 0, 0 ]
