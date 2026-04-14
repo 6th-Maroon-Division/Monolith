@@ -200,3 +200,20 @@ Entries:
   id: 17
   time: '2026-04-14T13:32:25.0000000+00:00'
   url: https://github.com/6th-Maroon-Division/Monolith/pull/41
+- author: chilla55
+  changes:
+    - type: Fix
+      message: >-
+        Fixed dockable airlocks being bolted open after ship retrieval from the
+        shipyard or server restart.
+    - type: Fix
+      message: >-
+        Fixed gaslocks showing docked visuals, active pipe connections, and live
+        power bridge nodes after ship retrieval or server restart.
+    - type: Fix
+      message: >-
+        Fixed mech ranged equipment state (fire rate) not being restored when a
+        ship is reloaded via the persistence anchor system.
+  id: 18
+  time: '2026-04-14T14:03:26.0000000+00:00'
+  url: https://github.com/6th-Maroon-Division/Monolith/pull/42
