@@ -102,7 +102,6 @@ public abstract partial class SharedVehicleSystem : EntitySystem
         if (TryComp<StrapComponent>(uid, out var strap))
         {
             component.BaseBuckleOffset = strap.BuckleOffset;
-            strap.BuckleOffset = Vector2.Zero;
         }
 
         ReconcileKeyState(uid, component);
