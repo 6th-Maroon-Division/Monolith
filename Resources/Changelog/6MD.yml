@@ -253,3 +253,12 @@ Entries:
   id: 22
   time: '2026-04-14T19:22:45.0000000+00:00'
   url: https://github.com/6th-Maroon-Division/Monolith/pull/46
+- author: chilla55
+  changes:
+    - type: Add
+      message: Added the Hestia Factory point of interest.
+    - type: Tweak
+      message: Disabled the Edison point of interest from active spawn rotation.
+  id: 23
+  time: '2026-04-14T23:51:31.0000000+00:00'
+  url: https://github.com/6th-Maroon-Division/Monolith/pull/51
