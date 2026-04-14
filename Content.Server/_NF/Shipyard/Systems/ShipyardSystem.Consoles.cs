@@ -801,6 +801,7 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
         _shipShields.ResyncGridShields(shuttleUid);
         _salvage.ResyncGridExpeditionConsoles(shuttleUid);
         _fireControl.ResyncGridFireControl(shuttleUid);
+        _docking.ResyncGridDockAirlocks(shuttleUid);
         _mech.ResyncGridMechs(shuttleUid);
 
         var ownerName = string.IsNullOrWhiteSpace(record.OwnerName) ? Name(player).Trim() : record.OwnerName;
