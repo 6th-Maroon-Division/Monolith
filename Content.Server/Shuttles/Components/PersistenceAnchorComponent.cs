@@ -8,7 +8,7 @@ public sealed partial class PersistenceAnchorComponent : Component
 {
     public const string OwnerIdCardSlotId = "PersistenceAnchor-ownerId";
 
-    [DataField("anchorId"), ViewVariables(VVAccess.ReadWrite)]
+    [ViewVariables(VVAccess.ReadWrite)]
     public string? AnchorId { get; set; }
 
 }
