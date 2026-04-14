@@ -26,3 +26,6 @@ runTestsYAML
 
 updateEngine
     Updates the engine. If you are setting up for the first time or your fork updated the engine, run this.
+
+syncUpstream
+    Sets local git `upstream` to Monolith-Station/Monolith.
