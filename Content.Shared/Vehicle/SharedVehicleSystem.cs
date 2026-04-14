@@ -40,6 +40,7 @@ public abstract partial class SharedVehicleSystem : EntitySystem
     [Dependency] private readonly SharedPopupSystem _popupSystem = default!;
     [Dependency] private readonly SharedVirtualItemSystem _virtualItemSystem = default!;
     [Dependency] private readonly SharedActionsSystem _actionsSystem = default!;
+    [Dependency] private readonly SharedContainerSystem _container = default!;
     [Dependency] private readonly SharedJointSystem _joints = default!;
     [Dependency] private readonly SharedBuckleSystem _buckle = default!;
     [Dependency] private readonly SharedMoverController _mover = default!;
@@ -104,6 +105,7 @@ public abstract partial class SharedVehicleSystem : EntitySystem
             strap.BuckleOffset = Vector2.Zero;
         }
 
+        ReconcileKeyState(uid, component);
         _modifier.RefreshMovementSpeedModifiers(uid);
     }
 
@@ -228,9 +230,7 @@ public abstract partial class SharedVehicleSystem : EntitySystem
         if (_netManager.IsServer)
             _popupSystem.PopupEntity(msg, uid, args.OldParent, PopupType.Medium);
 
-        // Audiovisual feedback
-        _ambientSound.SetAmbience(uid, true);
-        _modifier.RefreshMovementSpeedModifiers(uid);
+        ReconcileKeyState(uid, component);
     }
 
     /// <summary>
@@ -238,13 +238,34 @@ public abstract partial class SharedVehicleSystem : EntitySystem
     /// </summary>
     private void OnEntRemoved(EntityUid uid, VehicleComponent component, EntRemovedFromContainerMessage args)
     {
-        if (args.Container.ID != KeySlot || !RemComp<InVehicleComponent>(args.Entity))
+        if (args.Container.ID != KeySlot)
             return;
 
-        // Disable vehicle
-        component.HasKey = false;
-        _ambientSound.SetAmbience(uid, false);
+        RemComp<InVehicleComponent>(args.Entity);
+        ReconcileKeyState(uid, component);
+    }
+
+    private void ReconcileKeyState(EntityUid uid, VehicleComponent component)
+    {
+        var hasKey = false;
+
+        if (_container.TryGetContainer(uid, KeySlot, out var keySlot))
+        {
+            foreach (var ent in keySlot.ContainedEntities)
+            {
+                if (!_tagSystem.HasTag(ent, "VehicleKey"))
+                    continue;
+
+                var inVehicle = EnsureComp<InVehicleComponent>(ent);
+                inVehicle.Vehicle = component;
+                hasKey = true;
+            }
+        }
+
+        component.HasKey = hasKey;
+        _ambientSound.SetAmbience(uid, hasKey);
         _modifier.RefreshMovementSpeedModifiers(uid);
+        Dirty(uid, component);
     }
 
     private void OnRefreshMovementSpeedModifiers(EntityUid uid, VehicleComponent component, RefreshMovementSpeedModifiersEvent args)

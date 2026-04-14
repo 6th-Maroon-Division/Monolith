@@ -1,6 +1,6 @@
 - type: entity
   id: BaseVehicle
-  save: false
+  save: true
   abstract: true
   components:
   - type: AmbientSound
