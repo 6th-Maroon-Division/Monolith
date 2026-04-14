@@ -38,6 +38,7 @@ using Content.Server._NF.Station.Components;
 using Content.Server.Station.Components;
 using System.Text.RegularExpressions;
 using Content.Server._Mono.Shipyard;
+using Content.Server.Materials;
 using Content.Server.Mech.Systems;
 using Content.Server.Shuttles.Systems;
 using Content.Shared.UserInterface;
@@ -84,6 +85,7 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
     [Dependency] private readonly IGameTiming _timing = default!;
     [Dependency] private readonly TagSystem _tagSystem = default!;
     [Dependency] private readonly FireControlSystem _fireControl = default!;
+    [Dependency] private readonly MaterialStorageSystem _materialStorage = default!;
     [Dependency] private readonly MechSystem _mech = default!;
 
     private static readonly ProtoId<TagPrototype> CrewedShuttleTag = "CrewedShuttle";
@@ -803,6 +805,7 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
         _fireControl.ResyncGridFireControl(shuttleUid);
         _docking.ResyncGridDockAirlocks(shuttleUid);
         _mech.ResyncGridMechs(shuttleUid);
+        _materialStorage.ResyncGridMaterialStorage(shuttleUid);
 
         var ownerName = string.IsNullOrWhiteSpace(record.OwnerName) ? Name(player).Trim() : record.OwnerName;
         var deedID = EnsureComp<ShuttleDeedComponent>(targetId);
