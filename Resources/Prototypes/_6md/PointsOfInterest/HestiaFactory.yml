@@ -36,8 +36,8 @@
           mapNameTemplate: 'Hestia Factory'
         - type: ExtraStationInformation
           icon: /Textures/_NF/Interface/StationIcons/banner_engineering.png
-          stationSubtext: 6md-lobby-hestia-factory-subtext
-          stationDescription: 6md-lobby-hestia-factory-description
+          stationSubtext: hestia-factory-lobby-subtext
+          stationDescription: hestia-factory-lobby-description
           lobbySortOrder: 5
         - type: StationJobs
           availableJobs:
