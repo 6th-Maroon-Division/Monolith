@@ -8,38 +8,39 @@
 
 # Notes:
 #
-- type: pointOfInterest
-  id: Edison
-  parent: [BasePOI, BaseRepairablePOI]
-  name: 'Edison Power Plant'
-  minimumDistance: 5650
-  maximumDistance: 7400
-  spawnGroup: Required
-  gridPath: /Maps/_NF/POI/edison.yml
-  addComponents:
-  - type: IFF
-    color: "#3737F8"
-  - type: SolarPoweredGrid
-    trackOnInit: true
-    doNotCull: true
-
-- type: gameMap
-  id: Edison
-  mapName: 'Edison Power Plant'
-  mapPath: /Maps/_NF/POI/edison.yml
-  minPlayers: 0
-  stations:
-    Edison:
-      stationProto: RecordsFrontierOutpost
-      components:
-        - type: StationNameSetup
-          mapNameTemplate: 'Edison Power Plant'
-        - type: ExtraStationInformation
-          icon: /Textures/_NF/Interface/StationIcons/banner_engineering.png
-          stationSubtext: frontier-lobby-edison-subtext
-          stationDescription: frontier-lobby-edison-description
-          lobbySortOrder: 5
-        - type: StationJobs
-          availableJobs:
-            PlantManager: [ 1, 1 ]
-            PlantTechnician: [ 0, 0 ]
+# - type: pointOfInterest
+#   id: Edison
+#   parent: [BasePOI, BaseRepairablePOI]
+#   name: 'Edison Power Plant'
+#   spawnChance: 0
+#   minimumDistance: 5650
+#   maximumDistance: 7400
+#   spawnGroup: Required
+#   gridPath: /Maps/_NF/POI/edison.yml
+#   addComponents:
+#   - type: IFF
+#     color: "#3737F8"
+#   - type: SolarPoweredGrid
+#     trackOnInit: true
+#     doNotCull: true
+#
+# - type: gameMap
+#   id: Edison
+#   mapName: 'Edison Power Plant'
+#   mapPath: /Maps/_NF/POI/edison.yml
+#   minPlayers: 0
+#   stations:
+#     Edison:
+#       stationProto: RecordsFrontierOutpost
+#       components:
+#         - type: StationNameSetup
+#           mapNameTemplate: 'Edison Power Plant'
+#         - type: ExtraStationInformation
+#           icon: /Textures/_NF/Interface/StationIcons/banner_engineering.png
+#           stationSubtext: frontier-lobby-edison-subtext
+#           stationDescription: frontier-lobby-edison-description
+#           lobbySortOrder: 5
+#         - type: StationJobs
+#           availableJobs:
+#             PlantManager: [ 1, 1 ]
+#             PlantTechnician: [ 0, 0 ]
