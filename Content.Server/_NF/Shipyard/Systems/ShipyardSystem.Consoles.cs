@@ -38,6 +38,7 @@ using Content.Server._NF.Station.Components;
 using Content.Server.Station.Components;
 using System.Text.RegularExpressions;
 using Content.Server._Mono.Shipyard;
+using Content.Server.Mech.Systems;
 using Content.Server.Shuttles.Systems;
 using Content.Shared.UserInterface;
 using Robust.Shared.Audio.Systems;
@@ -83,6 +84,7 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
     [Dependency] private readonly IGameTiming _timing = default!;
     [Dependency] private readonly TagSystem _tagSystem = default!;
     [Dependency] private readonly FireControlSystem _fireControl = default!;
+    [Dependency] private readonly MechSystem _mech = default!;
 
     private static readonly ProtoId<TagPrototype> CrewedShuttleTag = "CrewedShuttle";
     private static readonly Regex DeedRegex = new(@"\s*\([^()]*\)");
@@ -642,11 +644,13 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
         {
             Category = FileCategory.Grid,
             MissingEntityBehaviour = MissingEntityBehaviour.Ignore,
-            EntityExceptionBehaviour = EntityExceptionBehaviour.IgnoreEntityAndChildren,
+            EntityExceptionBehaviour = EntityExceptionBehaviour.IgnoreEntity,
             ErrorOnOrphan = false,
             LogAutoInclude = null,
         };
 
+        // Save from the shuttle grid root to avoid selecting transient runtime entities
+        // (e.g. actions/audio) as serialization roots.
         if (!_mapLoader.TrySaveGrid(shuttleUid, snapshotPath, saveOptions))
         {
             ConsolePopup(player, Loc.GetString("shipyard-console-storage-save-failed"));
@@ -797,6 +801,7 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
         _shipShields.ResyncGridShields(shuttleUid);
         _salvage.ResyncGridExpeditionConsoles(shuttleUid);
         _fireControl.ResyncGridFireControl(shuttleUid);
+        _mech.ResyncGridMechs(shuttleUid);
 
         var ownerName = string.IsNullOrWhiteSpace(record.OwnerName) ? Name(player).Trim() : record.OwnerName;
         var deedID = EnsureComp<ShuttleDeedComponent>(targetId);

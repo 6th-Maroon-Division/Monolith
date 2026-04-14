@@ -6,6 +6,7 @@ using Content.Server.Power.EntitySystems;
 using Content.Server.Emp; // Monolith
 using Content.Shared.ActionBlocker;
 using Content.Shared.Damage;
+using Content.Shared.Damage.Components;
 using Content.Shared.DoAfter;
 using Content.Shared.FixedPoint;
 using Content.Shared.Interaction;
@@ -21,6 +22,8 @@ using Content.Shared.Verbs;
 using Content.Shared.Wires;
 using Content.Server.Body.Systems;
 using Content.Shared.Tools.Systems;
+using Content.Server.Weapons.Ranged.Systems;
+using Content.Shared.Weapons.Ranged.Components;
 using Robust.Server.Containers;
 using Robust.Server.GameObjects;
 using Robust.Shared.Containers;
@@ -48,6 +51,7 @@ public sealed partial class MechSystem : SharedMechSystem
     [Dependency] private readonly EntityWhitelistSystem _whitelistSystem = default!;
     [Dependency] private readonly SharedToolSystem _toolSystem = default!;
     [Dependency] private readonly MovementSpeedModifierSystem _movementSpeed = default!;
+    [Dependency] private readonly GunSystem _gun = default!;
 
     /// <inheritdoc/>
     public override void Initialize()
@@ -141,6 +145,7 @@ public sealed partial class MechSystem : SharedMechSystem
         component.Energy = battery.CurrentCharge;
         component.MaxEnergy = battery.MaxCharge;
         component.CriticalPowerState = battery.CurrentCharge / battery.MaxCharge <= 0.05f; // Mono
+        ReconcileIntegrity(uid, component);
         Dirty(uid, component);
 
         _movementSpeed.RefreshMovementSpeedModifiers(uid); // Mono
@@ -161,19 +166,87 @@ public sealed partial class MechSystem : SharedMechSystem
     private void OnMapInit(EntityUid uid, MechComponent component, MapInitEvent args)
     {
         var xform = Transform(uid);
-        // TODO: this should use containerfill?
-        foreach (var equipment in component.StartingEquipment)
+        // Avoid duplicating starter gear on deserialized mechs.
+        if (component.EquipmentContainer.ContainedEntities.Count == 0)
         {
-            var ent = Spawn(equipment, xform.Coordinates);
-            InsertEquipment(uid, ent, component);
+            // TODO: this should use containerfill?
+            foreach (var equipment in component.StartingEquipment)
+            {
+                var ent = Spawn(equipment, xform.Coordinates);
+                InsertEquipment(uid, ent, component);
+            }
         }
 
-        // TODO: this should just be damage and battery
-        component.Integrity = component.MaxIntegrity;
-        component.Energy = component.MaxEnergy;
+        ReconcileMechState(uid, component);
 
         _actionBlocker.UpdateCanMove(uid);
+        _movementSpeed.RefreshMovementSpeedModifiers(uid);
         Dirty(uid, component);
+    }
+
+    private void ReconcileMechState(EntityUid uid, MechComponent component)
+    {
+        ReconcileIntegrity(uid, component);
+
+        if (component.BatterySlot.ContainedEntity is { } batteryUid && TryComp<BatteryComponent>(batteryUid, out var battery))
+        {
+            component.Energy = battery.CurrentCharge;
+            component.MaxEnergy = battery.MaxCharge;
+            component.CriticalPowerState = battery.CurrentCharge / battery.MaxCharge <= 0.05f;
+        }
+        else if (component.Energy == 0 && component.MaxEnergy > 0)
+        {
+            component.Energy = component.MaxEnergy;
+        }
+    }
+
+    private void ReconcileIntegrity(EntityUid uid, MechComponent component)
+    {
+        if (TryComp<DamageableComponent>(uid, out var damageable))
+        {
+            var integrity = component.MaxIntegrity - damageable.TotalDamage;
+            component.Integrity = integrity < 0 ? 0 : integrity;
+            return;
+        }
+
+        if (component.Integrity == 0)
+            component.Integrity = component.MaxIntegrity;
+    }
+
+    public void ResyncGridMechs(EntityUid gridUid)
+    {
+        var mechQuery = EntityQueryEnumerator<MechComponent, TransformComponent>();
+        while (mechQuery.MoveNext(out var mechUid, out var mechComp, out var mechXform))
+        {
+            if (mechXform.GridUid != gridUid)
+                continue;
+
+            ReconcileMechState(mechUid, mechComp);
+
+            // Re-link EquipmentOwner — not serialized, so it is null after a load.
+            // Also refresh gun modifiers — FireRateModified is only set via MapInitEvent,
+            // which doesn't fire on midround grid loads, leaving FireRateModified = 0
+            // and silently blocking all ranged fire.
+            foreach (var equipUid in mechComp.EquipmentContainer.ContainedEntities)
+            {
+                if (TryComp<MechEquipmentComponent>(equipUid, out var equipComp))
+                    equipComp.EquipmentOwner = mechUid;
+
+                if (TryComp<GunComponent>(equipUid, out var gunComp))
+                    _gun.RefreshModifiers((equipUid, gunComp));
+            }
+
+            // CurrentSelectedEquipment is also not serialized; if there is equipment
+            // installed, auto-select the first piece so ranged weapons fire immediately.
+            if (mechComp.CurrentSelectedEquipment == null &&
+                mechComp.EquipmentContainer.ContainedEntities.Count > 0)
+            {
+                CycleEquipment(mechUid, mechComp);
+            }
+
+            _movementSpeed.RefreshMovementSpeedModifiers(mechUid);
+            Dirty(mechUid, mechComp);
+        }
     }
 
     private void OnRemoveEquipmentMessage(EntityUid uid, MechComponent component, MechEquipmentRemoveMessage args)
