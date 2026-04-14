@@ -142,6 +142,12 @@ public sealed class NFCCVars
     public static readonly CVarDef<bool> SalvageExpeditionRewardsEnabled =
         CVarDef.Create("nf14.salvage.expedition_rewards_enabled", false, CVar.REPLICATED);
 
+    /// <summary>
+    /// Whether expedition planet maps should always use a breathable atmosphere.
+    /// </summary>
+    public static readonly CVarDef<bool> SalvageExpeditionBreathableAtmos =
+        CVarDef.Create("nf14.salvage.expedition_breathable_atmos", true, CVar.SERVERONLY);
+
     /*
      * Smuggling
      */
