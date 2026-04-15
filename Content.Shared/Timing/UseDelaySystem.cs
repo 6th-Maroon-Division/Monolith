@@ -193,7 +193,7 @@ public sealed class UseDelaySystem : EntitySystem
             var query = EntityQueryEnumerator<UseDelayComponent, TransformComponent>();
             while (query.MoveNext(out var uid, out var delay, out var xform))
             {
-                if (xform.GridUid != gridUid)
+                if (!IsEntityOnGrid(uid, gridUid, xform))
                     continue;
 
                 foreach (var entry in delay.Delays.Values)
@@ -201,5 +201,30 @@ public sealed class UseDelaySystem : EntitySystem
 
                 Dirty(uid, delay);
             }
+        }
+
+        private bool IsEntityOnGrid(EntityUid uid, EntityUid gridUid, TransformComponent xform)
+        {
+            if (xform.GridUid == gridUid || uid == gridUid)
+                return true;
+
+            var parent = xform.ParentUid;
+            var query = GetEntityQuery<TransformComponent>();
+            var depth = 0;
+            while (parent.IsValid() && depth++ < 64)
+            {
+                if (parent == gridUid)
+                    return true;
+
+                if (!query.TryGetComponent(parent, out var parentXform))
+                    return false;
+
+                if (parentXform.GridUid == gridUid)
+                    return true;
+
+                parent = parentXform.ParentUid;
+            }
+
+            return false;
         }
 }
