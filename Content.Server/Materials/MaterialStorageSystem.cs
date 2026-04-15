@@ -7,6 +7,7 @@ using Content.Server.Storage.Components; // Frontier
 using Content.Server.Cargo.Systems; // Frontier
 using Content.Server.Power.Components;
 using Content.Server.Stack;
+using Content.Shared.Materials.OreSilo;
 using Content.Shared.ActionBlocker;
 using Content.Shared.Construction;
 using Content.Shared.Database;
@@ -32,6 +33,7 @@ public sealed partial class MaterialStorageSystem : SharedMaterialStorageSystem
     [Dependency] private SharedAudioSystem _audio = default!;
     [Dependency] private SharedPopupSystem _popup = default!;
     [Dependency] private StackSystem _stackSystem = default!;
+    [Dependency] private readonly SharedOreSiloSystem _oreSilo = default!;
     [Dependency] private new readonly AppearanceSystem _appearance = default!;
 
     public override void Initialize()
@@ -78,6 +80,19 @@ public sealed partial class MaterialStorageSystem : SharedMaterialStorageSystem
             RemComp<InsertingMaterialStorageComponent>(uid);
             _appearance.SetData(uid, MaterialStorageVisuals.Inserting, false);
         }
+
+        // MapInit does not fire for midround snapshot loads; reset magnet scan timers
+        // so lathes/silos with material magnets resume pulling immediately.
+        var magnetQuery = EntityQueryEnumerator<MaterialStorageMagnetPickupComponent, TransformComponent>();
+        while (magnetQuery.MoveNext(out _, out var magnet, out var xform))
+        {
+            if (xform.GridUid != gridUid)
+                continue;
+
+            magnet.NextScan = TimeSpan.Zero;
+        }
+
+        _oreSilo.SanitizeGridOreSiloLinks(gridUid);
     }
 
     // Mono
