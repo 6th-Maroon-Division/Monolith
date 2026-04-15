@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using Robust.Shared.GameStates;
 using Robust.Shared.Timing;
+using Robust.Shared.GameObjects;
 
 namespace Content.Shared.Timing;
 
@@ -187,4 +188,24 @@ public sealed partial class UseDelaySystem : EntitySystem
         }
         Dirty(ent);
     }
+
+        /// <summary>
+        /// Expires all active use-delays on every entity on a grid.
+        /// Called during ship snapshot restore to prevent stale serialized EndTime values
+        /// (from a previous server session) from permanently locking interactables.
+        /// </summary>
+        public void ExpireGridUseDelays(EntityUid gridUid)
+        {
+            var query = EntityQueryEnumerator<UseDelayComponent, TransformComponent>();
+            while (query.MoveNext(out var uid, out var delay, out var xform))
+            {
+                if (xform.GridUid != gridUid)
+                    continue;
+
+                foreach (var entry in delay.Delays.Values)
+                    entry.EndTime = TimeSpan.Zero;
+
+                Dirty(uid, delay);
+            }
+        }
 }
