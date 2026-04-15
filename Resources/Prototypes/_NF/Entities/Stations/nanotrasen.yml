@@ -89,6 +89,7 @@
   - BaseStation
   - BaseStationJobsSpawning
   - BaseStationRecords
+  - BaseStationMagnet
   - BaseStationAllEventsEligible
   - BaseStationRenameFaxes
   - BaseStationRenameHolopads

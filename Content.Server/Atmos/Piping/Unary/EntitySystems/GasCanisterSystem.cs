@@ -125,6 +125,82 @@ public sealed partial class GasCanisterSystem : SharedGasCanisterSystem
         }
     }
 
+    private void OnCanisterActivate(EntityUid uid, GasCanisterComponent component, ActivateInWorldEvent args)
+    {
+        if (!component.UiInteract)
+            return;
+
+        if (!args.Complex)
+            return;
+
+        if (!TryComp<ActorComponent>(args.User, out var actor))
+            return;
+
+        if (CheckLocked(uid, component, args.User))
+            return;
+
+        // Needs to be here so the locked check still happens if the canister
+        // is locked and you don't have permissions
+        if (args.Handled)
+            return;
+
+        _ui.OpenUi(uid, GasCanisterUiKey.Key, actor.PlayerSession);
+        args.Handled = true;
+    }
+
+    private void OnCanisterInteractHand(EntityUid uid, GasCanisterComponent component, InteractHandEvent args)
+    {
+        if (!component.UiInteract)
+            return;
+
+        if (!TryComp<ActorComponent>(args.User, out var actor))
+            return;
+
+        if (CheckLocked(uid, component, args.User))
+            return;
+
+        _ui.OpenUi(uid, GasCanisterUiKey.Key, actor.PlayerSession);
+        args.Handled = true;
+    }
+
+    private void OnCanisterInsertAttempt(EntityUid uid, GasCanisterComponent component, ref ItemSlotInsertAttemptEvent args)
+    {
+        if (args.Slot.ID != component.ContainerName || args.User == null)
+            return;
+
+        if (!TryComp<GasTankComponent>(args.Item, out var gasTank) || gasTank.IsValveOpen)
+        {
+            args.Cancelled = true;
+            return;
+        }
+
+        // Preventing inserting a tank since if its locked you cant remove it.
+        if (!CheckLocked(uid, component, args.User.Value))
+            return;
+
+        args.Cancelled = true;
+    }
+
+    private void OnCanisterContainerInserted(EntityUid uid, GasCanisterComponent component, EntInsertedIntoContainerMessage args)
+    {
+        if (args.Container.ID != component.ContainerName)
+            return;
+
+        DirtyUI(uid, component);
+
+        _appearance.SetData(uid, GasCanisterVisuals.TankInserted, true);
+    }
+
+    private void OnCanisterContainerRemoved(EntityUid uid, GasCanisterComponent component, EntRemovedFromContainerMessage args)
+    {
+        if (args.Container.ID != component.ContainerName)
+            return;
+
+        DirtyUI(uid, component);
+
+        _appearance.SetData(uid, GasCanisterVisuals.TankInserted, false);
+    }
+
     /// <summary>
     /// Mix air from a gas container into a pipe net.
     /// Useful for anything that uses connector ports.
