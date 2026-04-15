@@ -381,16 +381,7 @@ public sealed partial class PersistenceAnchorSystem : EntitySystem
             if (!TryGetLiveAnchor(grid, anchorId, out var anchor, out var component))
                 continue;
 
-            _shipyard.EnsureRestoredShuttleStation(grid);
-            _deviceNetwork.ResyncGridDeviceNetwork(grid);
-            _extensionCables.ResyncGridConnections(grid);
-            _gravityGenerators.ResyncGridGravity(grid);
-            _shipShields.ResyncGridShields(grid);
-            _salvage.ResyncGridExpeditionConsoles(grid);
-            _fireControl.ResyncGridFireControl(grid);
-            _dockingSystem.ResyncGridDockAirlocks(grid);
-            _mech.ResyncGridMechs(grid);
-            _materialStorage.ResyncGridMaterialStorage(grid);
+            _shipyard.HealRestoredGrid(grid);
 
             SaveSnapshot(anchor, component, immediate: true);
             _pendingRestoreHealAnchors.Remove(anchorId);
@@ -1191,6 +1182,16 @@ public sealed partial class PersistenceAnchorSystem : EntitySystem
 
         signature = $"gid:{record.GridPersistentId}";
         return true;
+    }
+
+    /// <summary>
+    /// Applies the persistence snapshot sanitization pass to a grid.
+    /// Intended for other snapshot writers (e.g. shipyard stored ships)
+    /// so all restore paths heal the same runtime-only references.
+    /// </summary>
+    public void SanitizeGridForSnapshot(EntityUid grid)
+    {
+        SanitizeGridForPersistence(grid);
     }
 
     private void SanitizeGridForPersistence(EntityUid grid)
