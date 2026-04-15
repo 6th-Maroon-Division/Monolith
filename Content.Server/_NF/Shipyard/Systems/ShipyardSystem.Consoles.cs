@@ -60,6 +60,10 @@ using Robust.Shared.EntitySerialization;
 using Robust.Shared.Timing;
 using Robust.Shared.Utility;
 using Content.Server._Mono.FireControl;
+using Content.Shared.CartridgeLoader.Cartridges;
+using Content.Shared.Storage.Components;
+using Content.Shared.Weapons.Melee;
+using Content.Shared.Weapons.Ranged.Components;
 
 namespace Content.Server._NF.Shipyard.Systems;
 
@@ -117,7 +121,106 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
         _docking.ResyncGridDockAirlocks(gridUid);
         _mech.ResyncGridMechs(gridUid);
         _materialStorage.ResyncGridMaterialStorage(gridUid);
-            _useDelay.ExpireGridUseDelays(gridUid);
+        _useDelay.ExpireGridUseDelays(gridUid);
+        ResyncGridItemCooldowns(gridUid);
+    }
+
+    /// <summary>
+    /// Clears stale per-item cooldown timestamps on a restored grid.
+    /// Some item systems serialize absolute TimeSpan cooldown markers and can
+    /// become effectively unusable after cross-session ship restore.
+    /// </summary>
+    private void ResyncGridItemCooldowns(EntityUid gridUid)
+    {
+        var gunQuery = EntityQueryEnumerator<GunComponent, TransformComponent>();
+        while (gunQuery.MoveNext(out var uid, out var gun, out var xform))
+        {
+            if (!IsEntityOnGrid(uid, gridUid, xform))
+                continue;
+
+            if (gun.NextFire < _timing.CurTime)
+                continue;
+
+            gun.NextFire = _timing.CurTime;
+            Dirty(uid, gun);
+        }
+
+        var meleeQuery = EntityQueryEnumerator<MeleeWeaponComponent, TransformComponent>();
+        while (meleeQuery.MoveNext(out var uid, out var melee, out var xform))
+        {
+            if (!IsEntityOnGrid(uid, gridUid, xform))
+                continue;
+
+            if (melee.NextAttack < _timing.CurTime)
+                continue;
+
+            melee.NextAttack = _timing.CurTime;
+            Dirty(uid, melee);
+        }
+
+        var rechargeQuery = EntityQueryEnumerator<RechargeBasicEntityAmmoComponent, TransformComponent>();
+        while (rechargeQuery.MoveNext(out var uid, out var recharge, out var xform))
+        {
+            if (!IsEntityOnGrid(uid, gridUid, xform))
+                continue;
+
+            if (recharge.NextCharge is not { } next || next < _timing.CurTime)
+                continue;
+
+            recharge.NextCharge = _timing.CurTime;
+            Dirty(uid, recharge);
+        }
+
+        var cartridgeQuery = EntityQueryEnumerator<NanoTaskCartridgeComponent, TransformComponent>();
+        while (cartridgeQuery.MoveNext(out var uid, out var cartridge, out var xform))
+        {
+            if (!IsEntityOnGrid(uid, gridUid, xform))
+                continue;
+
+            if (cartridge.NextPrintAllowedAfter < _timing.CurTime)
+                continue;
+
+            cartridge.NextPrintAllowedAfter = _timing.CurTime;
+            Dirty(uid, cartridge);
+        }
+
+        var entityStorageQuery = EntityQueryEnumerator<SharedEntityStorageComponent, TransformComponent>();
+        while (entityStorageQuery.MoveNext(out var uid, out var entityStorage, out var xform))
+        {
+            if (!IsEntityOnGrid(uid, gridUid, xform))
+                continue;
+
+            if (entityStorage.NextInternalOpenAttempt < _timing.CurTime)
+                continue;
+
+            entityStorage.NextInternalOpenAttempt = _timing.CurTime;
+            Dirty(uid, entityStorage);
+        }
+    }
+
+    private bool IsEntityOnGrid(EntityUid uid, EntityUid gridUid, TransformComponent xform)
+    {
+        if (xform.GridUid == gridUid || uid == gridUid)
+            return true;
+
+        var parent = xform.ParentUid;
+        var query = GetEntityQuery<TransformComponent>();
+        var depth = 0;
+        while (parent.IsValid() && depth++ < 64)
+        {
+            if (parent == gridUid)
+                return true;
+
+            if (!query.TryGetComponent(parent, out var parentXform))
+                return false;
+
+            if (parentXform.GridUid == gridUid)
+                return true;
+
+            parent = parentXform.ParentUid;
+        }
+
+        return false;
     }
 
     private EntityUid? GetOwningStationForConsole(EntityUid uid)
