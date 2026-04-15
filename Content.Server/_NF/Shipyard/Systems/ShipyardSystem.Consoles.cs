@@ -98,6 +98,25 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
 
     }
 
+    /// <summary>
+    /// Rebuild runtime links for grids loaded from snapshot data.
+    /// Keep all restore-time resync calls centralized so shipyard retrieval
+    /// and persistence-anchor restore paths cannot drift.
+    /// </summary>
+    public void HealRestoredGrid(EntityUid gridUid)
+    {
+        _ = EnsureRestoredShuttleStation(gridUid);
+        _deviceNetwork.ResyncGridDeviceNetwork(gridUid);
+        _extensionCables.ResyncGridConnections(gridUid);
+        _gravityGenerators.ResyncGridGravity(gridUid);
+        _shipShields.ResyncGridShields(gridUid);
+        _salvage.ResyncGridExpeditionConsoles(gridUid);
+        _fireControl.ResyncGridFireControl(gridUid);
+        _docking.ResyncGridDockAirlocks(gridUid);
+        _mech.ResyncGridMechs(gridUid);
+        _materialStorage.ResyncGridMaterialStorage(gridUid);
+    }
+
     private EntityUid? GetOwningStationForConsole(EntityUid uid)
     {
         if (_station.GetOwningStation(uid) is { Valid: true } stationUid)
@@ -669,6 +688,10 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
             LogAutoInclude = null,
         };
 
+        // Shipyard snapshots should receive the same persistence sanitization pass
+        // as persistence-anchor snapshots to avoid stale runtime references.
+        _persistenceAnchor.SanitizeGridForSnapshot(shuttleUid);
+
         // Save from the shuttle grid root to avoid selecting transient runtime entities
         // (e.g. actions/audio) as serialization roots.
         if (!_mapLoader.TrySaveGrid(shuttleUid, snapshotPath, saveOptions))
@@ -814,16 +837,7 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
         }
 
         _shuttle.TryFTLDock(shuttleUid, shuttle, targetGrid.Value);
-        _ = EnsureRestoredShuttleStation(shuttleUid);
-        _deviceNetwork.ResyncGridDeviceNetwork(shuttleUid);
-        _extensionCables.ResyncGridConnections(shuttleUid);
-        _gravityGenerators.ResyncGridGravity(shuttleUid);
-        _shipShields.ResyncGridShields(shuttleUid);
-        _salvage.ResyncGridExpeditionConsoles(shuttleUid);
-        _fireControl.ResyncGridFireControl(shuttleUid);
-        _docking.ResyncGridDockAirlocks(shuttleUid);
-        _mech.ResyncGridMechs(shuttleUid);
-        _materialStorage.ResyncGridMaterialStorage(shuttleUid);
+        HealRestoredGrid(shuttleUid);
 
         var ownerName = string.IsNullOrWhiteSpace(record.OwnerName) ? Name(player).Trim() : record.OwnerName;
         var deedID = EnsureComp<ShuttleDeedComponent>(targetId);
