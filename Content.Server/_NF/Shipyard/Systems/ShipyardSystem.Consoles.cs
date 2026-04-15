@@ -61,6 +61,7 @@ using Robust.Shared.Timing;
 using Robust.Shared.Utility;
 using Content.Server._Mono.FireControl;
 using Content.Shared.CartridgeLoader.Cartridges;
+using Content.Server.Storage.Components;
 using Content.Shared.Storage.Components;
 using Content.Shared.Weapons.Melee;
 using Content.Shared.Weapons.Ranged.Components;
@@ -132,74 +133,94 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
     /// </summary>
     private void ResyncGridItemCooldowns(EntityUid gridUid)
     {
-        var gunQuery = EntityQueryEnumerator<GunComponent, TransformComponent>();
-        while (gunQuery.MoveNext(out var uid, out var gun, out var xform))
+        var curTime = _timing.CurTime;
+
+        var gunQuery = EntityQueryEnumerator<GunComponent>();
+        while (gunQuery.MoveNext(out var uid, out var gun))
         {
+            if (!TryComp(uid, out TransformComponent? xform))
+                continue;
+
             if (!IsEntityOnGrid(uid, gridUid, xform))
                 continue;
 
-            if (gun.NextFire < _timing.CurTime)
+            if (gun.NextFire < curTime)
                 continue;
 
-            gun.NextFire = _timing.CurTime;
+            gun.NextFire = curTime;
             Dirty(uid, gun);
         }
 
-        var meleeQuery = EntityQueryEnumerator<MeleeWeaponComponent, TransformComponent>();
-        while (meleeQuery.MoveNext(out var uid, out var melee, out var xform))
+        var meleeQuery = EntityQueryEnumerator<MeleeWeaponComponent>();
+        while (meleeQuery.MoveNext(out var uid, out var melee))
         {
+            if (!TryComp(uid, out TransformComponent? xform))
+                continue;
+
             if (!IsEntityOnGrid(uid, gridUid, xform))
                 continue;
 
-            if (melee.NextAttack < _timing.CurTime)
+            if (melee.NextAttack < curTime)
                 continue;
 
-            melee.NextAttack = _timing.CurTime;
+            melee.NextAttack = curTime;
             Dirty(uid, melee);
         }
 
-        var rechargeQuery = EntityQueryEnumerator<RechargeBasicEntityAmmoComponent, TransformComponent>();
-        while (rechargeQuery.MoveNext(out var uid, out var recharge, out var xform))
+        var rechargeQuery = EntityQueryEnumerator<RechargeBasicEntityAmmoComponent>();
+        while (rechargeQuery.MoveNext(out var uid, out var recharge))
         {
+            if (!TryComp(uid, out TransformComponent? xform))
+                continue;
+
             if (!IsEntityOnGrid(uid, gridUid, xform))
                 continue;
 
-            if (recharge.NextCharge is not { } next || next < _timing.CurTime)
+            if (recharge.NextCharge is not { } next || next < curTime)
                 continue;
 
-            recharge.NextCharge = _timing.CurTime;
+            recharge.NextCharge = curTime;
             Dirty(uid, recharge);
         }
 
-        var cartridgeQuery = EntityQueryEnumerator<NanoTaskCartridgeComponent, TransformComponent>();
-        while (cartridgeQuery.MoveNext(out var uid, out var cartridge, out var xform))
+        var cartridgeQuery = EntityQueryEnumerator<NanoTaskCartridgeComponent>();
+        while (cartridgeQuery.MoveNext(out var uid, out var cartridge))
         {
+            if (!TryComp(uid, out TransformComponent? xform))
+                continue;
+
             if (!IsEntityOnGrid(uid, gridUid, xform))
                 continue;
 
-            if (cartridge.NextPrintAllowedAfter < _timing.CurTime)
+            if (cartridge.NextPrintAllowedAfter < curTime)
                 continue;
 
-            cartridge.NextPrintAllowedAfter = _timing.CurTime;
+            cartridge.NextPrintAllowedAfter = curTime;
             Dirty(uid, cartridge);
         }
 
-        var entityStorageQuery = EntityQueryEnumerator<SharedEntityStorageComponent, TransformComponent>();
-        while (entityStorageQuery.MoveNext(out var uid, out var entityStorage, out var xform))
+        var entityStorageQuery = EntityQueryEnumerator<EntityStorageComponent>();
+        while (entityStorageQuery.MoveNext(out var uid, out var entityStorage))
         {
+            if (!TryComp(uid, out TransformComponent? xform))
+                continue;
+
             if (!IsEntityOnGrid(uid, gridUid, xform))
                 continue;
 
-            if (entityStorage.NextInternalOpenAttempt < _timing.CurTime)
+            if (entityStorage.NextInternalOpenAttempt < curTime)
                 continue;
 
-            entityStorage.NextInternalOpenAttempt = _timing.CurTime;
+            entityStorage.NextInternalOpenAttempt = curTime;
             Dirty(uid, entityStorage);
         }
     }
 
-    private bool IsEntityOnGrid(EntityUid uid, EntityUid gridUid, TransformComponent xform)
+    private bool IsEntityOnGrid(EntityUid uid, EntityUid gridUid, TransformComponent? xform = null)
     {
+        if (!Resolve(uid, ref xform, false))
+            return false;
+
         if (xform.GridUid == gridUid || uid == gridUid)
             return true;
 

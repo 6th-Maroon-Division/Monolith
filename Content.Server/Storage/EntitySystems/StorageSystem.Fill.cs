@@ -20,10 +20,18 @@ public sealed partial class StorageSystem
 
         if (TryComp<StorageComponent>(uid, out var storageComp))
         {
+            // Persisted or serialized entities may already contain items.
+            if (storageComp.Container.ContainedEntities.Count > 0)
+                return;
+
             FillStorage((uid, component, storageComp));
         }
         else if (TryComp<EntityStorageComponent>(uid, out var entityStorageComp))
         {
+            // Avoid re-filling restored entity-storage contents.
+            if (entityStorageComp.Contents.ContainedEntities.Count > 0)
+                return;
+
             FillEntityStorage((uid, component, entityStorageComp));
         }
         else
@@ -80,6 +88,9 @@ public sealed partial class StorageSystem
                 else
                     reason += $", {reasons}";
             }
+
+            if (string.IsNullOrWhiteSpace(reason))
+                reason = "unknown";
 
             Log.Error($"Tried to StorageFill {ToPrettyString(ent)} inside {ToPrettyString(uid)} but can't. reason: {reason}");
             ClearCantFillReasons();

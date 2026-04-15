@@ -54,6 +54,15 @@ public sealed partial class BinSystem : EntitySystem
         if (_net.IsClient)
             return;
 
+        // Bins loaded from persisted or serialized maps may already contain papers.
+        if (component.ItemContainer.ContainedEntities.Count > 0)
+        {
+            component.Items.Clear();
+            component.Items.AddRange(component.ItemContainer.ContainedEntities);
+            Dirty(uid, component);
+            return;
+        }
+
         var xform = Transform(uid);
         foreach (var id in component.InitialContents)
         {
