@@ -209,6 +209,9 @@ public sealed class GasCanisterSystem : EntitySystem
 
     private void OnCanisterActivate(EntityUid uid, GasCanisterComponent component, ActivateInWorldEvent args)
     {
+        if (!component.UiInteract)
+            return;
+
         if (!args.Complex)
             return;
 
@@ -229,6 +232,9 @@ public sealed class GasCanisterSystem : EntitySystem
 
     private void OnCanisterInteractHand(EntityUid uid, GasCanisterComponent component, InteractHandEvent args)
     {
+        if (!component.UiInteract)
+            return;
+
         if (!TryComp<ActorComponent>(args.User, out var actor))
             return;
 

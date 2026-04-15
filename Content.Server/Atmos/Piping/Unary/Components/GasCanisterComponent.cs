@@ -63,6 +63,13 @@ namespace Content.Server.Atmos.Piping.Unary.Components
         [DataField("accessDeniedSound")]
         public SoundSpecifier AccessDeniedSound = new SoundPathSpecifier("/Audio/Machines/custom_deny.ogg");
 
+        /// <summary>
+        /// Whether canister interaction handlers should open canister UI on click/hand interact.
+        /// Composite machines can disable this and rely on their own ActivatableUI.
+        /// </summary>
+        [DataField("uiInteract")]
+        public bool UiInteract = true;
+
         #region GuidebookData
 
         [GuidebookData]
