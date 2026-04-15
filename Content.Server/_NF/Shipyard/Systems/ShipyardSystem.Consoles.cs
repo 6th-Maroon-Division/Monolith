@@ -40,6 +40,7 @@ using System.Text.RegularExpressions;
 using Content.Server._Mono.Shipyard;
 using Content.Server.Materials;
 using Content.Server.Mech.Systems;
+using Content.Shared.Timing;
 using Content.Server.Shuttles.Systems;
 using Content.Shared.UserInterface;
 using Robust.Shared.Audio.Systems;
@@ -87,6 +88,7 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
     [Dependency] private readonly FireControlSystem _fireControl = default!;
     [Dependency] private readonly MaterialStorageSystem _materialStorage = default!;
     [Dependency] private readonly MechSystem _mech = default!;
+    [Dependency] private readonly UseDelaySystem _useDelay = default!;
 
     private static readonly ProtoId<TagPrototype> CrewedShuttleTag = "CrewedShuttle";
     private static readonly Regex DeedRegex = new(@"\s*\([^()]*\)");
@@ -113,6 +115,7 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
         _docking.ResyncGridDockAirlocks(gridUid);
         _mech.ResyncGridMechs(gridUid);
         _materialStorage.ResyncGridMaterialStorage(gridUid);
+            _useDelay.ExpireGridUseDelays(gridUid);
     }
 
     private EntityUid? GetOwningStationForConsole(EntityUid uid)
