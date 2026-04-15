@@ -165,4 +165,76 @@ public abstract class SharedOreSiloSystem : EntitySystem
 
         return true;
     }
+
+    /// <summary>
+    /// Cleans up stale silo/client references on a grid after snapshot-based restores.
+    /// MapInit does not always rebuild these links for midround loads.
+    /// </summary>
+    public void SanitizeGridOreSiloLinks(EntityUid gridUid)
+    {
+        var siloQuery = EntityQueryEnumerator<OreSiloComponent, TransformComponent>();
+        while (siloQuery.MoveNext(out var siloUid, out var silo, out var xform))
+        {
+            if (xform.GridUid != gridUid)
+                continue;
+
+            var sanitizedClients = new HashSet<EntityUid>();
+            var changed = false;
+
+            foreach (var clientUid in silo.Clients)
+            {
+                if (!clientUid.IsValid() || !Exists(clientUid) || TerminatingOrDeleted(clientUid))
+                {
+                    changed = true;
+                    continue;
+                }
+
+                if (!_clientQuery.TryComp(clientUid, out var clientComp))
+                {
+                    changed = true;
+                    continue;
+                }
+
+                if (_transform.GetGrid(clientUid) != gridUid)
+                {
+                    changed = true;
+                    continue;
+                }
+
+                if (!sanitizedClients.Add(clientUid))
+                    changed = true;
+
+                if (clientComp.Silo == siloUid)
+                    continue;
+
+                clientComp.Silo = siloUid;
+                Dirty(clientUid, clientComp);
+            }
+
+            if (!changed)
+                continue;
+
+            silo.Clients = sanitizedClients;
+            Dirty(siloUid, silo);
+        }
+
+        var clientQuery = EntityQueryEnumerator<OreSiloClientComponent, TransformComponent>();
+        while (clientQuery.MoveNext(out var clientUid, out var clientComp, out var xform))
+        {
+            if (xform.GridUid != gridUid)
+                continue;
+
+            if (clientComp.Silo is not { } siloUid)
+                continue;
+
+            if (!siloUid.IsValid() || !Exists(siloUid) || TerminatingOrDeleted(siloUid)
+                || !TryComp<OreSiloComponent>(siloUid, out var siloComp)
+                || _transform.GetGrid(siloUid) != gridUid
+                || !siloComp.Clients.Contains(clientUid))
+            {
+                clientComp.Silo = null;
+                Dirty(clientUid, clientComp);
+            }
+        }
+    }
 }
