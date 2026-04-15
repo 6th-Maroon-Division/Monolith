@@ -299,9 +299,19 @@ public sealed partial class PersistenceAnchorSystem : EntitySystem
                 continue;
             }
 
-            _pendingRestoredGridAnchors[loadedGrid.Value.Owner] = anchorId;
+            var loadedGridUid = loadedGrid.Value.Owner;
+
+            // TryLoadGrid completes entity startup before returning, so anchor MapInit can
+            // run before we mark this grid as a restore candidate. Register pending restore
+            // metadata first, then force a registration pass for any already-started anchor
+            // on the loaded grid to keep anchor IDs stable.
+            _pendingRestoredGridAnchors[loadedGridUid] = anchorId;
+
+            if (TryFindAnchorOnGrid(loadedGridUid, out var anchorUid, out var anchorComp))
+                TryRegisterAnchor(anchorUid, anchorComp, immediateSave: false);
+
             _pendingRestoreHealAnchors.Add(anchorId);
-            _pendingRestoreUnlockGrids.Add(loadedGrid.Value.Owner);
+            _pendingRestoreUnlockGrids.Add(loadedGridUid);
 
             Log.Info($"[Persistence] Restored persistent grid '{record.GridName}' (anchor {anchorId}) from snapshot.");
             // _anchorToGrid / _gridToAnchor will be populated naturally when the
@@ -405,6 +415,24 @@ public sealed partial class PersistenceAnchorSystem : EntitySystem
         }
 
         return null;
+    }
+
+    private bool TryFindAnchorOnGrid(EntityUid gridUid, out EntityUid anchorUid, out PersistenceAnchorComponent component)
+    {
+        var query = EntityQueryEnumerator<PersistenceAnchorComponent, TransformComponent>();
+        while (query.MoveNext(out var uid, out var anchorComp, out var xform))
+        {
+            if (xform.GridUid != gridUid)
+                continue;
+
+            anchorUid = uid;
+            component = anchorComp;
+            return true;
+        }
+
+        anchorUid = EntityUid.Invalid;
+        component = default!;
+        return false;
     }
 
     // ── Startup rebuild ──────────────────────────────────────────────────────
