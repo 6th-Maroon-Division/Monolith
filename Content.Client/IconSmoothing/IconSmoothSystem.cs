@@ -42,6 +42,7 @@ namespace Content.Client.IconSmoothing
             SubscribeLocalEvent<IconSmoothComponent, AnchorStateChangedEvent>(OnAnchorChanged);
             SubscribeLocalEvent<IconSmoothComponent, ComponentShutdown>(OnShutdown);
             SubscribeLocalEvent<IconSmoothComponent, ComponentStartup>(OnStartup);
+            SubscribeLocalEvent<IconSmoothComponent, EntParentChangedMessage>(OnParentChanged);
         }
 
         private void OnStartup(EntityUid uid, IconSmoothComponent component, ComponentStartup args)
@@ -211,6 +212,11 @@ namespace Content.Client.IconSmoothing
                 _anchorChangedEntities.Enqueue(uid);
         }
 
+        private void OnParentChanged(EntityUid uid, IconSmoothComponent component, ref EntParentChangedMessage args)
+        {
+            _anchorChangedEntities.Enqueue(uid);
+        }
+
         private void CalculateNewSprite(EntityUid uid,
             EntityQuery<SpriteComponent> spriteQuery,
             EntityQuery<IconSmoothComponent> smoothQuery,
@@ -278,7 +284,7 @@ namespace Content.Client.IconSmoothing
                 }
                 else
                 {
-                    Log.Error($"Failed to calculate IconSmoothComponent sprite in {uid} because grid {xform.GridUid} was missing.");
+                    _dirtyEntities.Enqueue(uid);
                     return;
                 }
             }
