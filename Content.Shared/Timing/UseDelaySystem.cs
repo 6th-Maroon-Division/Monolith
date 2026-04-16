@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using Robust.Shared.GameStates;
 using Robust.Shared.Timing;
+using Robust.Shared.GameObjects;
 
 namespace Content.Shared.Timing;
 
@@ -181,4 +182,49 @@ public sealed class UseDelaySystem : EntitySystem
         }
         Dirty(ent);
     }
+
+        /// <summary>
+        /// Expires all active use-delays on every entity on a grid.
+        /// Called during ship snapshot restore to prevent stale serialized EndTime values
+        /// (from a previous server session) from permanently locking interactables.
+        /// </summary>
+        public void ExpireGridUseDelays(EntityUid gridUid)
+        {
+            var query = EntityQueryEnumerator<UseDelayComponent, TransformComponent>();
+            while (query.MoveNext(out var uid, out var delay, out var xform))
+            {
+                if (!IsEntityOnGrid(uid, gridUid, xform))
+                    continue;
+
+                foreach (var entry in delay.Delays.Values)
+                    entry.EndTime = TimeSpan.Zero;
+
+                Dirty(uid, delay);
+            }
+        }
+
+        private bool IsEntityOnGrid(EntityUid uid, EntityUid gridUid, TransformComponent xform)
+        {
+            if (xform.GridUid == gridUid || uid == gridUid)
+                return true;
+
+            var parent = xform.ParentUid;
+            var query = GetEntityQuery<TransformComponent>();
+            var depth = 0;
+            while (parent.IsValid() && depth++ < 64)
+            {
+                if (parent == gridUid)
+                    return true;
+
+                if (!query.TryGetComponent(parent, out var parentXform))
+                    return false;
+
+                if (parentXform.GridUid == gridUid)
+                    return true;
+
+                parent = parentXform.ParentUid;
+            }
+
+            return false;
+        }
 }

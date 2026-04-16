@@ -34,6 +34,10 @@ public sealed class ContainerFillSystem : EntitySystem
                 continue;
             }
 
+            // Containers can already be populated when loading persisted or serialized map entities.
+            if (container.ContainedEntities.Count > 0)
+                continue;
+
             foreach (var proto in prototypes)
             {
                 var ent = Spawn(proto, coords);
@@ -65,6 +69,10 @@ public sealed class ContainerFillSystem : EntitySystem
                 Log.Error($"Entity {ToPrettyString(ent)} with a {nameof(EntityTableContainerFillComponent)} is missing a container ({containerId}).");
                 continue;
             }
+
+            // Avoid duplicate table fills when map content already contains entities.
+            if (container.ContainedEntities.Count > 0)
+                continue;
 
             var spawns = _entityTable.GetSpawns(table);
             foreach (var proto in spawns)

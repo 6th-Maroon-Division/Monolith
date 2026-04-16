@@ -242,9 +242,19 @@ public sealed partial class PersistenceAnchorSystem : EntitySystem
     private void OnRoundStarted(RoundStartedEvent ev)
     {
         _suppressShutdownArchival = false;
+        RegisterUntrackedAnchors();
         UnlockRestoredGridLocks();
         RestoreDockLinks();
         HealRestoredSnapshots();
+    }
+
+    private void RegisterUntrackedAnchors()
+    {
+        var query = EntityQueryEnumerator<PersistenceAnchorComponent>();
+        while (query.MoveNext(out var anchorUid, out var component))
+        {
+            TryRegisterAnchor(anchorUid, component, immediateSave: false);
+        }
     }
 
     /// <summary>
@@ -299,9 +309,19 @@ public sealed partial class PersistenceAnchorSystem : EntitySystem
                 continue;
             }
 
-            _pendingRestoredGridAnchors[loadedGrid.Value.Owner] = anchorId;
+            var loadedGridUid = loadedGrid.Value.Owner;
+
+            // TryLoadGrid completes entity startup before returning, so anchor MapInit can
+            // run before we mark this grid as a restore candidate. Register pending restore
+            // metadata first, then force a registration pass for any already-started anchor
+            // on the loaded grid to keep anchor IDs stable.
+            _pendingRestoredGridAnchors[loadedGridUid] = anchorId;
+
+            if (TryFindAnchorOnGrid(loadedGridUid, out var anchorUid, out var anchorComp))
+                TryRegisterAnchor(anchorUid, anchorComp, immediateSave: false);
+
             _pendingRestoreHealAnchors.Add(anchorId);
-            _pendingRestoreUnlockGrids.Add(loadedGrid.Value.Owner);
+            _pendingRestoreUnlockGrids.Add(loadedGridUid);
 
             Log.Info($"[Persistence] Restored persistent grid '{record.GridName}' (anchor {anchorId}) from snapshot.");
             // _anchorToGrid / _gridToAnchor will be populated naturally when the
@@ -381,16 +401,7 @@ public sealed partial class PersistenceAnchorSystem : EntitySystem
             if (!TryGetLiveAnchor(grid, anchorId, out var anchor, out var component))
                 continue;
 
-            _shipyard.EnsureRestoredShuttleStation(grid);
-            _deviceNetwork.ResyncGridDeviceNetwork(grid);
-            _extensionCables.ResyncGridConnections(grid);
-            _gravityGenerators.ResyncGridGravity(grid);
-            _shipShields.ResyncGridShields(grid);
-            _salvage.ResyncGridExpeditionConsoles(grid);
-            _fireControl.ResyncGridFireControl(grid);
-            _dockingSystem.ResyncGridDockAirlocks(grid);
-            _mech.ResyncGridMechs(grid);
-            _materialStorage.ResyncGridMaterialStorage(grid);
+            _shipyard.HealRestoredGrid(grid);
 
             SaveSnapshot(anchor, component, immediate: true);
             _pendingRestoreHealAnchors.Remove(anchorId);
@@ -414,6 +425,24 @@ public sealed partial class PersistenceAnchorSystem : EntitySystem
         }
 
         return null;
+    }
+
+    private bool TryFindAnchorOnGrid(EntityUid gridUid, out EntityUid anchorUid, out PersistenceAnchorComponent component)
+    {
+        var query = EntityQueryEnumerator<PersistenceAnchorComponent, TransformComponent>();
+        while (query.MoveNext(out var uid, out var anchorComp, out var xform))
+        {
+            if (xform.GridUid != gridUid)
+                continue;
+
+            anchorUid = uid;
+            component = anchorComp;
+            return true;
+        }
+
+        anchorUid = EntityUid.Invalid;
+        component = default!;
+        return false;
     }
 
     // ── Startup rebuild ──────────────────────────────────────────────────────
@@ -641,6 +670,12 @@ public sealed partial class PersistenceAnchorSystem : EntitySystem
     private void TryRegisterAnchor(EntityUid anchor, PersistenceAnchorComponent component, bool immediateSave)
     {
         var xform = Transform(anchor);
+
+        // Do not mutate component state while a map is still pre-init.
+        // This keeps prototype-spawn validation deterministic.
+        if (!_mapManager.IsMapInitialized(xform.MapID))
+            return;
+
         if (!TryResolveAnchorGrid(anchor, xform, out var grid))
             return;
 
@@ -662,6 +697,10 @@ public sealed partial class PersistenceAnchorSystem : EntitySystem
         {
             if (wasPendingRestore)
                 component.AnchorId = restoredId;
+            else if (TryComp<PersistenceAnchorIdentityComponent>(grid, out var identity)
+                     && !string.IsNullOrWhiteSpace(identity.PersistentId)
+                     && TryFindActiveAnchorIdByGridPersistentId(identity.PersistentId!, out var recoveredAnchorId))
+                component.AnchorId = recoveredAnchorId;
             else if (!immediateSave)
                 return;
             else
@@ -697,6 +736,25 @@ public sealed partial class PersistenceAnchorSystem : EntitySystem
         UpdateVisual(anchor, PersistenceAnchorState.Clean);
     }
 
+    private bool TryFindActiveAnchorIdByGridPersistentId(string persistentId, out string anchorId)
+    {
+        // In case of duplicate records, prefer the most recently saved one.
+        var match = _manifest.Records
+            .Where(pair => !pair.Value.Archived && string.Equals(pair.Value.GridPersistentId, persistentId, StringComparison.Ordinal))
+            .OrderByDescending(pair => pair.Value.LastSavedUtc)
+            .ThenBy(pair => pair.Key, StringComparer.Ordinal)
+            .FirstOrDefault();
+
+        if (string.IsNullOrWhiteSpace(match.Key))
+        {
+            anchorId = string.Empty;
+            return false;
+        }
+
+        anchorId = match.Key;
+        return true;
+    }
+
     private void SaveSnapshot(EntityUid anchor, PersistenceAnchorComponent component, bool immediate)
     {
         try
@@ -718,14 +776,13 @@ public sealed partial class PersistenceAnchorSystem : EntitySystem
 
             var gridPersistentId = identity.PersistentId;
             // Some live ships may carry runtime references/components that are not fully serializable.
-            // Use tolerant options so we persist as much as possible instead of failing the entire snapshot.
+            // We tolerate missing references, but must fail on per-entity serialization exceptions.
+            // Ignoring entity exceptions can silently produce partial snapshots (e.g. missing walls).
             var saveOptions = SerializationOptions.Default with
             {
                 Category = FileCategory.Grid,
                 MissingEntityBehaviour = MissingEntityBehaviour.Ignore,
-                EntityExceptionBehaviour = EntityExceptionBehaviour.IgnoreEntityAndChildren,
                 ErrorOnOrphan = false,
-                LogAutoInclude = null,
             };
 
             SanitizeGridForPersistence(grid);
@@ -1191,6 +1248,16 @@ public sealed partial class PersistenceAnchorSystem : EntitySystem
 
         signature = $"gid:{record.GridPersistentId}";
         return true;
+    }
+
+    /// <summary>
+    /// Applies the persistence snapshot sanitization pass to a grid.
+    /// Intended for other snapshot writers (e.g. shipyard stored ships)
+    /// so all restore paths heal the same runtime-only references.
+    /// </summary>
+    public void SanitizeGridForSnapshot(EntityUid grid)
+    {
+        SanitizeGridForPersistence(grid);
     }
 
     private void SanitizeGridForPersistence(EntityUid grid)

@@ -40,6 +40,7 @@ using System.Text.RegularExpressions;
 using Content.Server._Mono.Shipyard;
 using Content.Server.Materials;
 using Content.Server.Mech.Systems;
+using Content.Shared.Timing;
 using Content.Server.Shuttles.Systems;
 using Content.Shared.UserInterface;
 using Robust.Shared.Audio.Systems;
@@ -58,6 +59,11 @@ using Robust.Shared.EntitySerialization;
 using Robust.Shared.Timing;
 using Robust.Shared.Utility;
 using Content.Server._Mono.FireControl;
+using Content.Shared.CartridgeLoader.Cartridges;
+using Content.Server.Storage.Components;
+using Content.Shared.Storage.Components;
+using Content.Shared.Weapons.Melee;
+using Content.Shared.Weapons.Ranged.Components;
 
 namespace Content.Server._NF.Shipyard.Systems;
 
@@ -87,6 +93,7 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
     [Dependency] private readonly FireControlSystem _fireControl = default!;
     [Dependency] private readonly MaterialStorageSystem _materialStorage = default!;
     [Dependency] private readonly MechSystem _mech = default!;
+    [Dependency] private readonly UseDelaySystem _useDelay = default!;
 
     private static readonly ProtoId<TagPrototype> CrewedShuttleTag = "CrewedShuttle";
     private static readonly Regex DeedRegex = new(@"\s*\([^()]*\)");
@@ -94,6 +101,145 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
     public void InitializeConsole()
     {
 
+    }
+
+    /// <summary>
+    /// Rebuild runtime links for grids loaded from snapshot data.
+    /// Keep all restore-time resync calls centralized so shipyard retrieval
+    /// and persistence-anchor restore paths cannot drift.
+    /// </summary>
+    public void HealRestoredGrid(EntityUid gridUid)
+    {
+        _ = EnsureRestoredShuttleStation(gridUid);
+        _deviceNetwork.ResyncGridDeviceNetwork(gridUid);
+        _extensionCables.ResyncGridConnections(gridUid);
+        _gravityGenerators.ResyncGridGravity(gridUid);
+        _shipShields.ResyncGridShields(gridUid);
+        _salvage.ResyncGridExpeditionConsoles(gridUid);
+        _fireControl.ResyncGridFireControl(gridUid);
+        _docking.ResyncGridDockAirlocks(gridUid);
+        _mech.ResyncGridMechs(gridUid);
+        _materialStorage.ResyncGridMaterialStorage(gridUid);
+        _useDelay.ExpireGridUseDelays(gridUid);
+        ResyncGridItemCooldowns(gridUid);
+    }
+
+    /// <summary>
+    /// Clears stale per-item cooldown timestamps on a restored grid.
+    /// Some item systems serialize absolute TimeSpan cooldown markers and can
+    /// become effectively unusable after cross-session ship restore.
+    /// </summary>
+    private void ResyncGridItemCooldowns(EntityUid gridUid)
+    {
+        var curTime = _timing.CurTime;
+
+        var gunQuery = EntityQueryEnumerator<GunComponent>();
+        while (gunQuery.MoveNext(out var uid, out var gun))
+        {
+            if (!TryComp(uid, out TransformComponent? xform))
+                continue;
+
+            if (!IsEntityOnGrid(uid, gridUid, xform))
+                continue;
+
+            if (gun.NextFire < curTime)
+                continue;
+
+            gun.NextFire = curTime;
+            Dirty(uid, gun);
+        }
+
+        var meleeQuery = EntityQueryEnumerator<MeleeWeaponComponent>();
+        while (meleeQuery.MoveNext(out var uid, out var melee))
+        {
+            if (!TryComp(uid, out TransformComponent? xform))
+                continue;
+
+            if (!IsEntityOnGrid(uid, gridUid, xform))
+                continue;
+
+            if (melee.NextAttack < curTime)
+                continue;
+
+            melee.NextAttack = curTime;
+            Dirty(uid, melee);
+        }
+
+        var rechargeQuery = EntityQueryEnumerator<RechargeBasicEntityAmmoComponent>();
+        while (rechargeQuery.MoveNext(out var uid, out var recharge))
+        {
+            if (!TryComp(uid, out TransformComponent? xform))
+                continue;
+
+            if (!IsEntityOnGrid(uid, gridUid, xform))
+                continue;
+
+            if (recharge.NextCharge is not { } next || next < curTime)
+                continue;
+
+            recharge.NextCharge = curTime;
+            Dirty(uid, recharge);
+        }
+
+        var cartridgeQuery = EntityQueryEnumerator<NanoTaskCartridgeComponent>();
+        while (cartridgeQuery.MoveNext(out var uid, out var cartridge))
+        {
+            if (!TryComp(uid, out TransformComponent? xform))
+                continue;
+
+            if (!IsEntityOnGrid(uid, gridUid, xform))
+                continue;
+
+            if (cartridge.NextPrintAllowedAfter < curTime)
+                continue;
+
+            cartridge.NextPrintAllowedAfter = curTime;
+            Dirty(uid, cartridge);
+        }
+
+        var entityStorageQuery = EntityQueryEnumerator<EntityStorageComponent>();
+        while (entityStorageQuery.MoveNext(out var uid, out var entityStorage))
+        {
+            if (!TryComp(uid, out TransformComponent? xform))
+                continue;
+
+            if (!IsEntityOnGrid(uid, gridUid, xform))
+                continue;
+
+            if (entityStorage.NextInternalOpenAttempt < curTime)
+                continue;
+
+            entityStorage.NextInternalOpenAttempt = curTime;
+            Dirty(uid, entityStorage);
+        }
+    }
+
+    private bool IsEntityOnGrid(EntityUid uid, EntityUid gridUid, TransformComponent? xform = null)
+    {
+        if (!Resolve(uid, ref xform, false))
+            return false;
+
+        if (xform.GridUid == gridUid || uid == gridUid)
+            return true;
+
+        var parent = xform.ParentUid;
+        var query = GetEntityQuery<TransformComponent>();
+        var depth = 0;
+        while (parent.IsValid() && depth++ < 64)
+        {
+            if (parent == gridUid)
+                return true;
+
+            if (!query.TryGetComponent(parent, out var parentXform))
+                return false;
+
+            if (parentXform.GridUid == gridUid)
+                return true;
+
+            parent = parentXform.ParentUid;
+        }
+
+        return false;
     }
 
     private EntityUid? GetOwningStationForConsole(EntityUid uid)
@@ -651,6 +797,10 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
             LogAutoInclude = null,
         };
 
+        // Shipyard snapshots should receive the same persistence sanitization pass
+        // as persistence-anchor snapshots to avoid stale runtime references.
+        _persistenceAnchor.SanitizeGridForSnapshot(shuttleUid);
+
         // Save from the shuttle grid root to avoid selecting transient runtime entities
         // (e.g. actions/audio) as serialization roots.
         if (!_mapLoader.TrySaveGrid(shuttleUid, snapshotPath, saveOptions))
@@ -796,16 +946,7 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
         }
 
         _shuttle.TryFTLDock(shuttleUid, shuttle, targetGrid.Value);
-        _ = EnsureRestoredShuttleStation(shuttleUid);
-        _deviceNetwork.ResyncGridDeviceNetwork(shuttleUid);
-        _extensionCables.ResyncGridConnections(shuttleUid);
-        _gravityGenerators.ResyncGridGravity(shuttleUid);
-        _shipShields.ResyncGridShields(shuttleUid);
-        _salvage.ResyncGridExpeditionConsoles(shuttleUid);
-        _fireControl.ResyncGridFireControl(shuttleUid);
-        _docking.ResyncGridDockAirlocks(shuttleUid);
-        _mech.ResyncGridMechs(shuttleUid);
-        _materialStorage.ResyncGridMaterialStorage(shuttleUid);
+        HealRestoredGrid(shuttleUid);
 
         var ownerName = string.IsNullOrWhiteSpace(record.OwnerName) ? Name(player).Trim() : record.OwnerName;
         var deedID = EnsureComp<ShuttleDeedComponent>(targetId);
