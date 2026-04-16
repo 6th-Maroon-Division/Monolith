@@ -242,9 +242,19 @@ public sealed partial class PersistenceAnchorSystem : EntitySystem
     private void OnRoundStarted(RoundStartedEvent ev)
     {
         _suppressShutdownArchival = false;
+        RegisterUntrackedAnchors();
         UnlockRestoredGridLocks();
         RestoreDockLinks();
         HealRestoredSnapshots();
+    }
+
+    private void RegisterUntrackedAnchors()
+    {
+        var query = EntityQueryEnumerator<PersistenceAnchorComponent>();
+        while (query.MoveNext(out var anchorUid, out var component))
+        {
+            TryRegisterAnchor(anchorUid, component, immediateSave: false);
+        }
     }
 
     /// <summary>
@@ -660,6 +670,12 @@ public sealed partial class PersistenceAnchorSystem : EntitySystem
     private void TryRegisterAnchor(EntityUid anchor, PersistenceAnchorComponent component, bool immediateSave)
     {
         var xform = Transform(anchor);
+
+        // Do not mutate component state while a map is still pre-init.
+        // This keeps prototype-spawn validation deterministic.
+        if (!_mapManager.IsMapInitialized(xform.MapID))
+            return;
+
         if (!TryResolveAnchorGrid(anchor, xform, out var grid))
             return;
 
