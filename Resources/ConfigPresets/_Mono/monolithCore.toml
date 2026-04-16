@@ -42,6 +42,9 @@ discord_channel_id = 1331042209172164639
 auto_call_time = 720
 mass_limit = 0
 
+[movement]
+mob_pushing = true
+
 [surgery]
 can_operate_on_self = true
 
