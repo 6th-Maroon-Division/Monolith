@@ -681,6 +681,10 @@ public sealed partial class PersistenceAnchorSystem : EntitySystem
         {
             if (wasPendingRestore)
                 component.AnchorId = restoredId;
+            else if (TryComp<PersistenceAnchorIdentityComponent>(grid, out var identity)
+                     && !string.IsNullOrWhiteSpace(identity.PersistentId)
+                     && TryFindActiveAnchorIdByGridPersistentId(identity.PersistentId!, out var recoveredAnchorId))
+                component.AnchorId = recoveredAnchorId;
             else if (!immediateSave)
                 return;
             else
@@ -716,6 +720,25 @@ public sealed partial class PersistenceAnchorSystem : EntitySystem
         UpdateVisual(anchor, PersistenceAnchorState.Clean);
     }
 
+    private bool TryFindActiveAnchorIdByGridPersistentId(string persistentId, out string anchorId)
+    {
+        // In case of duplicate records, prefer the most recently saved one.
+        var match = _manifest.Records
+            .Where(pair => !pair.Value.Archived && string.Equals(pair.Value.GridPersistentId, persistentId, StringComparison.Ordinal))
+            .OrderByDescending(pair => pair.Value.LastSavedUtc)
+            .ThenBy(pair => pair.Key, StringComparer.Ordinal)
+            .FirstOrDefault();
+
+        if (string.IsNullOrWhiteSpace(match.Key))
+        {
+            anchorId = string.Empty;
+            return false;
+        }
+
+        anchorId = match.Key;
+        return true;
+    }
+
     private void SaveSnapshot(EntityUid anchor, PersistenceAnchorComponent component, bool immediate)
     {
         try
@@ -737,14 +760,13 @@ public sealed partial class PersistenceAnchorSystem : EntitySystem
 
             var gridPersistentId = identity.PersistentId;
             // Some live ships may carry runtime references/components that are not fully serializable.
-            // Use tolerant options so we persist as much as possible instead of failing the entire snapshot.
+            // We tolerate missing references, but must fail on per-entity serialization exceptions.
+            // Ignoring entity exceptions can silently produce partial snapshots (e.g. missing walls).
             var saveOptions = SerializationOptions.Default with
             {
                 Category = FileCategory.Grid,
                 MissingEntityBehaviour = MissingEntityBehaviour.Ignore,
-                EntityExceptionBehaviour = EntityExceptionBehaviour.IgnoreEntityAndChildren,
                 ErrorOnOrphan = false,
-                LogAutoInclude = null,
             };
 
             SanitizeGridForPersistence(grid);
