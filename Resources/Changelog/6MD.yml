@@ -262,3 +262,28 @@ Entries:
   id: 23
   time: '2026-04-14T23:51:31.0000000+00:00'
   url: https://github.com/6th-Maroon-Division/Monolith/pull/51
+- author: chilla55
+  changes:
+    - type: Fix
+      message: Fixed lever interactions failing after retrieving stored ships.
+    - type: Fix
+      message: Fixed gravity generators breaking on persistence-anchor restores.
+    - type: Fix
+      message: Fixed stored-ship cooldown/state restore regressions.
+    - type: Fix
+      message: Fixed Hestia persistence/spawn restore issues.
+    - type: Fix
+      message: Fixed energy-to-air converter GUI click handling.
+    - type: Fix
+      message: Fixed salvage magnet station-parent restoration issues.
+    - type: Fix
+      message: >-
+        Fixed duplicate map-init fill behavior and reduced invalid uid 0 warning
+        spam.
+    - type: Fix
+      message: >-
+        Hardened persistence anchor snapshot integrity to prevent silent partial
+        snapshots.
+  id: 24
+  time: '2026-04-16T18:01:20.0000000+00:00'
+  url: https://github.com/6th-Maroon-Division/Monolith/pull/60
