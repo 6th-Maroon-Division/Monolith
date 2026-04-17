@@ -336,3 +336,12 @@ Entries:
   id: 28
   time: '2026-04-17T20:12:25.0000000+00:00'
   url: https://github.com/6th-Maroon-Division/Monolith/pull/76
+- author: chilla55
+  changes:
+    - type: Fix
+      message: >-
+        Fixed ship pipe networks losing their stored gas after shipyard storage
+        or persistence-anchor restoration.
+  id: 29
+  time: '2026-04-17T20:12:34.0000000+00:00'
+  url: https://github.com/6th-Maroon-Division/Monolith/pull/74
