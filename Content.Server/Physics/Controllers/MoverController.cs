@@ -53,7 +53,7 @@ public sealed partial class MoverController : SharedMoverController
         SubscribeLocalEvent<InputMoverComponent, PlayerDetachedEvent>(OnPlayerDetached);
         SubscribeLocalEvent<PilotComponent, GetShuttleInputsEvent>(OnPilotGetInputs); // Mono
 
-        SubscribeLocalEvent<PilotedShuttleComponent, StartCollideEvent>(PilotedShuttleRelayEvent<StartCollideEvent>); // Mono
+        SubscribeLocalEvent<PilotedShuttleComponent, StartCollideEvent>((ent, ref args) => PilotedShuttleRelayEvent(ent, ref args)); // Mono
     }
 
     private void OnEntityPaused(Entity<ActiveInputMoverComponent> ent, ref EntityPausedEvent args)
