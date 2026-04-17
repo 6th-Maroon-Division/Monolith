@@ -296,3 +296,16 @@ Entries:
   id: 25
   time: '2026-04-16T18:05:58.0000000+00:00'
   url: https://github.com/6th-Maroon-Division/Monolith/pull/62
+- author: chilla55
+  changes:
+    - type: Fix
+      message: >-
+        Expedition hostile mobs now spawn with functional AI instead of
+        remaining as inert markers.
+    - type: Fix
+      message: >-
+        Fixed expedition console atmosphere and temperature display not
+        reflecting actual spawned conditions.
+  id: 26
+  time: '2026-04-17T05:51:30.0000000+00:00'
+  url: https://github.com/6th-Maroon-Division/Monolith/pull/71
