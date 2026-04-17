@@ -403,6 +403,12 @@ public sealed partial class PersistenceAnchorSystem : EntitySystem
 
             _shipyard.HealRestoredGrid(grid);
 
+            var pipeSnapshotPath = GetActivePipeSnapshotPath(anchorId);
+            if (!_shipyard.TryRestoreGridPipeSnapshot(grid, pipeSnapshotPath))
+            {
+                Log.Warning($"[Persistence] Could not restore stored pipe gas state for anchor {anchorId} ({ToPrettyString(grid)}).");
+            }
+
             SaveSnapshot(anchor, component, immediate: true);
             _pendingRestoreHealAnchors.Remove(anchorId);
         }
@@ -767,6 +773,7 @@ public sealed partial class PersistenceAnchorSystem : EntitySystem
 
             var anchorId = component.AnchorId;
             var snapshotPath = GetActiveSnapshotPath(anchorId);
+            var pipeSnapshotPath = GetActivePipeSnapshotPath(anchorId);
 
             var identity = EnsureComp<PersistenceAnchorIdentityComponent>(grid);
             if (string.IsNullOrWhiteSpace(identity.PersistentId))
@@ -790,6 +797,12 @@ public sealed partial class PersistenceAnchorSystem : EntitySystem
             if (!_loader.TrySaveGrid(grid, snapshotPath, saveOptions))
             {
                 Log.Error($"[Persistence] Failed to save snapshot for {ToPrettyString(grid)} (anchor {ToPrettyString(anchor)}).");
+                return;
+            }
+
+            if (!_shipyard.SaveGridPipeSnapshot(grid, pipeSnapshotPath))
+            {
+                Log.Error($"[Persistence] Failed to save pipe snapshot for {ToPrettyString(grid)} (anchor {ToPrettyString(anchor)}).");
                 return;
             }
 
@@ -892,12 +905,22 @@ public sealed partial class PersistenceAnchorSystem : EntitySystem
 
         var activePath = GetActiveSnapshotPath(anchorId);
         var archivePath = GetArchiveSnapshotPath(anchorId);
+        var activePipePath = GetActivePipeSnapshotPath(anchorId);
+        var archivePipePath = GetArchivePipeSnapshotPath(anchorId);
         if (_res.UserData.Exists(activePath))
         {
             if (_res.UserData.Exists(archivePath))
                 _res.UserData.Delete(archivePath);
 
             _res.UserData.Rename(activePath, archivePath);
+        }
+
+        if (_res.UserData.Exists(activePipePath))
+        {
+            if (_res.UserData.Exists(archivePipePath))
+                _res.UserData.Delete(archivePipePath);
+
+            _res.UserData.Rename(activePipePath, archivePipePath);
         }
 
         record.Archived = true;
@@ -921,12 +944,22 @@ public sealed partial class PersistenceAnchorSystem : EntitySystem
 
             var activePath = GetActiveSnapshotPath(anchorId);
             var archivePath = GetArchiveSnapshotPath(anchorId);
+            var activePipePath = GetActivePipeSnapshotPath(anchorId);
+            var archivePipePath = GetArchivePipeSnapshotPath(anchorId);
             if (_res.UserData.Exists(activePath))
             {
                 if (_res.UserData.Exists(archivePath))
                     _res.UserData.Delete(archivePath);
 
                 _res.UserData.Rename(activePath, archivePath);
+            }
+
+            if (_res.UserData.Exists(activePipePath))
+            {
+                if (_res.UserData.Exists(archivePipePath))
+                    _res.UserData.Delete(archivePipePath);
+
+                _res.UserData.Rename(activePipePath, archivePipePath);
             }
 
             record.Archived = true;
@@ -1589,9 +1622,19 @@ public sealed partial class PersistenceAnchorSystem : EntitySystem
         return new ResPath($"{ActiveDirectory}/{anchorId}.yml");
     }
 
+    private static ResPath GetActivePipeSnapshotPath(string anchorId)
+    {
+        return new ResPath($"{ActiveDirectory}/{anchorId}.atmos.json");
+    }
+
     private static ResPath GetArchiveSnapshotPath(string anchorId)
     {
         return new ResPath($"{ArchiveDirectory}/{anchorId}.yml");
+    }
+
+    private static ResPath GetArchivePipeSnapshotPath(string anchorId)
+    {
+        return new ResPath($"{ArchiveDirectory}/{anchorId}.atmos.json");
     }
 
     private bool? IsPredefinedStation(EntityUid stationUid)
