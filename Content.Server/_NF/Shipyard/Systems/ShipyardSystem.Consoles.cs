@@ -62,6 +62,7 @@ using Robust.Shared.Utility;
 using Content.Server._Mono.FireControl;
 using Content.Shared.CartridgeLoader.Cartridges;
 using Content.Server.Storage.Components;
+using Content.Server.NodeContainer.EntitySystems;
 using Content.Shared.Storage.Components;
 using Content.Shared.Weapons.Melee;
 using Content.Shared.Weapons.Ranged.Components;
@@ -95,6 +96,7 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
     [Dependency] private readonly FireControlSystem _fireControl = default!;
     [Dependency] private readonly MaterialStorageSystem _materialStorage = default!;
     [Dependency] private readonly MechSystem _mech = default!;
+    [Dependency] private readonly NodeGroupSystem _nodeGroups = default!;
     [Dependency] private readonly UseDelaySystem _useDelay = default!;
 
     private static readonly ProtoId<TagPrototype> CrewedShuttleTag = "CrewedShuttle";
@@ -805,6 +807,7 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
         var userKey = ToStoredUserKey(userId);
         var slotId = Guid.NewGuid().ToString("N");
         var snapshotPath = GetStoredShipSnapshotPath(userKey, slotId);
+        var pipeSnapshotPath = GetStoredShipPipeSnapshotPath(userKey, slotId);
 
         var saveOptions = SerializationOptions.Default with
         {
@@ -823,6 +826,16 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
         // (e.g. actions/audio) as serialization roots.
         if (!_mapLoader.TrySaveGrid(shuttleUid, snapshotPath, saveOptions))
         {
+            ConsolePopup(player, Loc.GetString("shipyard-console-storage-save-failed"));
+            PlayDenySound(player, uid, component);
+            return;
+        }
+
+        if (!SaveGridPipeSnapshot(shuttleUid, pipeSnapshotPath))
+        {
+            if (_res.UserData.Exists(snapshotPath))
+                _res.UserData.Delete(snapshotPath);
+
             ConsolePopup(player, Loc.GetString("shipyard-console-storage-save-failed"));
             PlayDenySound(player, uid, component);
             return;
@@ -922,9 +935,13 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
         }
 
         var snapshotPath = new ResPath(record.SnapshotPath);
+        var userKey = ToStoredUserKey(userId);
+        var pipeSnapshotPath = GetStoredShipPipeSnapshotPath(userKey, record.SlotId);
         if (!_res.UserData.Exists(snapshotPath))
         {
             RemoveStoredShip(userId, record.SlotId);
+            if (_res.UserData.Exists(pipeSnapshotPath))
+                _res.UserData.Delete(pipeSnapshotPath);
             ConsolePopup(player, Loc.GetString("shipyard-console-storage-missing"));
             PlayDenySound(player, uid, component);
             return;
@@ -965,6 +982,10 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
 
         _shuttle.TryFTLDock(shuttleUid, shuttle, targetGrid.Value);
         HealRestoredGrid(shuttleUid);
+        if (!TryRestoreGridPipeSnapshot(shuttleUid, pipeSnapshotPath))
+        {
+            _sawmill.Warning($"[ShipyardStorage] Could not restore all stored pipe gas state for {ToPrettyString(shuttleUid)}");
+        }
 
         var ownerName = string.IsNullOrWhiteSpace(record.OwnerName) ? Name(player).Trim() : record.OwnerName;
         var deedID = EnsureComp<ShuttleDeedComponent>(targetId);
@@ -989,6 +1010,8 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
         RemoveStoredShip(userId, record.SlotId);
         if (_res.UserData.Exists(snapshotPath))
             _res.UserData.Delete(snapshotPath);
+        if (_res.UserData.Exists(pipeSnapshotPath))
+            _res.UserData.Delete(pipeSnapshotPath);
 
         ConsolePopup(player, Loc.GetString("shipyard-console-storage-retrieve-success", ("ship", record.ShipName)));
         PlayConfirmSound(player, uid, component);
@@ -1031,8 +1054,12 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
             }
 
             var snapshotPath = new ResPath(record.SnapshotPath);
+            var userKey = ToStoredUserKey(userId);
+            var pipeSnapshotPath = GetStoredShipPipeSnapshotPath(userKey, record.SlotId);
             if (_res.UserData.Exists(snapshotPath))
                 _res.UserData.Delete(snapshotPath);
+            if (_res.UserData.Exists(pipeSnapshotPath))
+                _res.UserData.Delete(pipeSnapshotPath);
 
             RemoveStoredShip(userId, record.SlotId);
 
@@ -1047,8 +1074,12 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
         else
         {
             var snapshotPath = new ResPath(record.SnapshotPath);
+            var userKey = ToStoredUserKey(userId);
+            var pipeSnapshotPath = GetStoredShipPipeSnapshotPath(userKey, record.SlotId);
             if (_res.UserData.Exists(snapshotPath))
                 _res.UserData.Delete(snapshotPath);
+            if (_res.UserData.Exists(pipeSnapshotPath))
+                _res.UserData.Delete(pipeSnapshotPath);
 
             RemoveStoredShip(userId, record.SlotId);
 

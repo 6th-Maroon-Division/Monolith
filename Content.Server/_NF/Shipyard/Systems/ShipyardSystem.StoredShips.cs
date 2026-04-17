@@ -1,6 +1,12 @@
 using System.Text.Json;
 using System.Linq;
+using System.Globalization;
+using Content.Server.NodeContainer;
+using Content.Server.NodeContainer.NodeGroups;
+using Content.Server.NodeContainer.Nodes;
+using Content.Shared.Atmos;
 using Robust.Shared.ContentPack;
+using Robust.Shared.Map;
 using Robust.Shared.Player;
 using Robust.Shared.Serialization;
 using Robust.Shared.Utility;
@@ -90,6 +96,147 @@ public sealed partial class ShipyardSystem
     private static ResPath GetStoredShipSnapshotPath(string userKey, string slotId)
     {
         return new ResPath($"{StoredShipsRootDirectory}/{userKey}_{slotId}.yml");
+    }
+
+    private static ResPath GetStoredShipPipeSnapshotPath(string userKey, string slotId)
+    {
+        return new ResPath($"{StoredShipsRootDirectory}/{userKey}_{slotId}.atmos.json");
+    }
+
+    public bool SaveGridPipeSnapshot(EntityUid gridUid, ResPath path)
+    {
+        try
+        {
+            var snapshot = CaptureStoredShipPipeSnapshot(gridUid);
+            if (snapshot.Nets.Count == 0)
+            {
+                if (_res.UserData.Exists(path))
+                    _res.UserData.Delete(path);
+
+                return true;
+            }
+
+            var json = JsonSerializer.Serialize(snapshot, StoredShipsJsonOptions);
+            _res.UserData.WriteAllText(path, json);
+            return true;
+        }
+        catch (Exception e)
+        {
+            _sawmill.Error($"[ShipyardStorage] Failed to save pipe snapshot for {ToPrettyString(gridUid)}: {e}");
+            return false;
+        }
+    }
+
+    public bool TryRestoreGridPipeSnapshot(EntityUid gridUid, ResPath path)
+    {
+        if (!_res.UserData.Exists(path))
+            return true;
+
+        try
+        {
+            _nodeGroups.ForceUpdate();
+
+            var json = _res.UserData.ReadAllText(path);
+            var snapshot = JsonSerializer.Deserialize<StoredShipPipeSnapshot>(json, StoredShipsJsonOptions);
+            if (snapshot == null)
+                return false;
+
+            ApplyStoredShipPipeSnapshot(gridUid, snapshot);
+            return true;
+        }
+        catch (Exception e)
+        {
+            _sawmill.Error($"[ShipyardStorage] Failed to restore pipe snapshot for {ToPrettyString(gridUid)}: {e}");
+            return false;
+        }
+    }
+
+    private StoredShipPipeSnapshot CaptureStoredShipPipeSnapshot(EntityUid gridUid)
+    {
+        var snapshot = new StoredShipPipeSnapshot();
+        var seenNets = new HashSet<PipeNet>();
+
+        var query = EntityQueryEnumerator<NodeContainerComponent, TransformComponent>();
+        while (query.MoveNext(out var uid, out var nodes, out var xform))
+        {
+            if (xform.GridUid != gridUid)
+                continue;
+
+            foreach (var node in nodes.Nodes.Values)
+            {
+                if (node is not PipeNode pipe || pipe.NodeGroup is not PipeNet net)
+                    continue;
+
+                if (!seenNets.Add(net))
+                    continue;
+
+                var air = net.Air;
+                var moles = new float[Atmospherics.AdjustedNumberOfGases];
+                for (var i = 0; i < moles.Length; i++)
+                {
+                    moles[i] = air.GetMoles(i);
+                }
+
+                snapshot.Nets.Add(new StoredShipPipeNetRecord
+                {
+                    Signature = BuildPipeSignature(xform.Coordinates, pipe),
+                    Volume = air.Volume,
+                    Temperature = air.Temperature,
+                    Moles = moles,
+                });
+            }
+        }
+
+        return snapshot;
+    }
+
+    private void ApplyStoredShipPipeSnapshot(EntityUid gridUid, StoredShipPipeSnapshot snapshot)
+    {
+        var netsBySignature = new Dictionary<string, PipeNet>(StringComparer.Ordinal);
+
+        var query = EntityQueryEnumerator<NodeContainerComponent, TransformComponent>();
+        while (query.MoveNext(out var uid, out var nodes, out var xform))
+        {
+            if (xform.GridUid != gridUid)
+                continue;
+
+            foreach (var node in nodes.Nodes.Values)
+            {
+                if (node is not PipeNode pipe || pipe.NodeGroup is not PipeNet net)
+                    continue;
+
+                var signature = BuildPipeSignature(xform.Coordinates, pipe);
+                netsBySignature.TryAdd(signature, net);
+            }
+        }
+
+        var restored = new HashSet<PipeNet>();
+        foreach (var record in snapshot.Nets)
+        {
+            if (string.IsNullOrWhiteSpace(record.Signature))
+                continue;
+
+            if (!netsBySignature.TryGetValue(record.Signature, out var net))
+                continue;
+
+            if (!restored.Add(net))
+                continue;
+
+            var moles = new float[Atmospherics.AdjustedNumberOfGases];
+            if (record.Moles != null)
+            {
+                Array.Copy(record.Moles, moles, Math.Min(record.Moles.Length, moles.Length));
+            }
+
+            var restoredAir = new GasMixture(moles, Math.Clamp(record.Temperature, Atmospherics.TCMB, Atmospherics.Tmax), MathF.Max(0f, record.Volume));
+            net.Air = restoredAir;
+        }
+    }
+
+    private static string BuildPipeSignature(EntityCoordinates coordinates, PipeNode node)
+    {
+        var pos = coordinates.Position;
+        return FormattableString.Invariant($"{pos.X:F3}|{pos.Y:F3}|{node.Name}|{(int)node.CurrentPipeLayer}");
     }
 
     private bool TryPeekStoredShip(Guid userId, out StoredShipRecord? record)
@@ -208,5 +355,20 @@ public sealed partial class ShipyardSystem
         public int SellValue { get; set; }
         public bool PurchasedWithVoucher { get; set; }
         public DateTime StoredAtUtc { get; set; }
+    }
+
+    [Serializable]
+    private sealed class StoredShipPipeSnapshot
+    {
+        public List<StoredShipPipeNetRecord> Nets { get; set; } = new();
+    }
+
+    [Serializable]
+    private sealed class StoredShipPipeNetRecord
+    {
+        public string Signature { get; set; } = string.Empty;
+        public float Volume { get; set; }
+        public float Temperature { get; set; }
+        public float[]? Moles { get; set; }
     }
 }
