@@ -544,10 +544,9 @@ public sealed class SpawnSalvageMissionJob : Job<bool>
 
                         var spawnPosition = _map.GridTileToLocal(mapUid, grid, spawnTile); // Frontier: grid<_map
 
-                        var uid = _entManager.CreateEntityUninitialized(entry, spawnPosition);
+                        var uid = _entManager.SpawnAtPosition(entry, spawnPosition);
                         _entManager.RemoveComponent<GhostTakeoverAvailableComponent>(uid);
                         _entManager.RemoveComponent<GhostRoleComponent>(uid);
-                        _entManager.InitializeAndStartEntity(uid);
 
                         break;
                     }
