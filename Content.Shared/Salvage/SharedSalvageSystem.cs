@@ -3,6 +3,8 @@ using Content.Shared.Random;
 using Content.Shared.Random.Helpers;
 using Content.Shared.Salvage.Expeditions;
 using Content.Shared.Salvage.Expeditions.Modifiers;
+using Content.Shared._NF.CCVar;
+using Robust.Shared.Configuration;
 using Robust.Shared.Prototypes;
 using Robust.Shared.Random;
 using Robust.Shared.Serialization;
@@ -12,6 +14,7 @@ namespace Content.Shared.Salvage;
 
 public abstract partial class SharedSalvageSystem : EntitySystem
 {
+    [Dependency] private readonly IConfigurationManager _cfg = default!;
     [Dependency] private readonly ILocalizationManager _loc = default!;
     [Dependency] private readonly IPrototypeManager _proto = default!;
 
@@ -104,23 +107,38 @@ public abstract partial class SharedSalvageSystem : EntitySystem
         var air = GetBiomeMod<SalvageAirMod>(biome.ID, rand, ref rating);
         var dungeon = GetBiomeMod<SalvageDungeonModPrototype>(biome.ID, rand, ref rating);
 
-        var mods = new List<string>();
-
-        if (air.Description != string.Empty)
-        {
-            mods.Add(Loc.GetString(air.Description));
-        }
+        // Keep client preview and server spawn behavior in sync when breathable atmos override is enabled.
+        var breathableAtmos = _cfg.GetCVar(NFCCVars.SalvageExpeditionBreathableAtmos);
+        var effectiveAir = air;
 
         // only show the description if there is an atmosphere since wont matter otherwise
         var temp = GetBiomeMod<SalvageTemperatureMod>(biome.ID, rand, ref rating);
-        if (temp.Description != string.Empty && !air.Space)
+        var effectiveTemp = temp;
+
+        if (breathableAtmos)
         {
-            mods.Add(Loc.GetString(temp.Description));
+            if (_proto.TryIndex<SalvageAirMod>("Mix1", out var breathableAir))
+                effectiveAir = breathableAir;
+
+            if (_proto.TryIndex<SalvageTemperatureMod>("RoomTemp", out var roomTemp))
+                effectiveTemp = roomTemp;
+        }
+
+        var mods = new List<string>();
+
+        if (effectiveAir.Description != string.Empty)
+        {
+            mods.Add(Loc.GetString(effectiveAir.Description));
+        }
+
+        if (effectiveTemp.Description != string.Empty && !effectiveAir.Space)
+        {
+            mods.Add(Loc.GetString(effectiveTemp.Description));
         }
 
         // only show the description if there is an atmosphere since wont matter otherwise
         var weather = GetBiomeMod<SalvageWeatherMod>(biome.ID, rand, ref rating);
-        if (weather.Description != string.Empty && !air.Space)
+        if (weather.Description != string.Empty && !effectiveAir.Space)
         {
             mods.Add(Loc.GetString(weather.Description));
         }
@@ -143,7 +161,7 @@ public abstract partial class SharedSalvageSystem : EntitySystem
         }
 
         var rewards = GetRewards(difficulty, rand);
-        return new SalvageMission(seed, difficulty, dungeon.ID, faction.ID, config, biome.ID, weather.ID, air.ID, temp.Temperature, light.Color, duration, rewards, mods);
+        return new SalvageMission(seed, difficulty, dungeon.ID, faction.ID, config, biome.ID, weather.ID, effectiveAir.ID, effectiveTemp.Temperature, light.Color, duration, rewards, mods);
     }
 
     public T GetBiomeMod<T>(string biome, System.Random rand, ref float rating) where T : class, IPrototype, IBiomeSpecificMod
