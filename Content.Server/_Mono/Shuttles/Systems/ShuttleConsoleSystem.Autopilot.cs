@@ -1,6 +1,7 @@
 using Content.Server._Mono.NPC.HTN.Operators;
 using Content.Server.NPC.HTN;
 using Content.Shared.Popups;
+using Content.Shared.Shuttles.Components;
 using Content.Server.Shuttles.Components;
 using Content.Shared._Mono.Shuttles;
 using Robust.Shared.Audio;
@@ -18,7 +19,10 @@ public sealed partial class ShuttleConsoleAutopilotSystem : EntitySystem
     {
         base.Initialize();
 
-        SubscribeLocalEvent<ShuttleConsoleComponent, ShuttleConsoleAutopilotPositionMessage>(OnAutopilotMessage);
+        Subs.BuiEvents<ShuttleConsoleComponent>(ShuttleConsoleUiKey.Key, subs =>
+        {
+            subs.Event<ShuttleConsoleAutopilotPositionMessage>(OnAutopilotMessage);
+        });
         SubscribeLocalEvent<ShuttleConsoleComponent, SteeringDoneEvent>(OnSteeringDone);
     }
 
