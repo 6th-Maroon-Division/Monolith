@@ -319,3 +319,20 @@ Entries:
   id: 27
   time: '2026-04-17T06:29:50.0000000+00:00'
   url: https://github.com/6th-Maroon-Division/Monolith/pull/72
+- author: chilla55
+  changes:
+    - type: Fix
+      message: >-
+        Prevented salvage magnet crashes when configured asteroid/debris
+        prototypes are missing by adding safe fallback offer generation.
+    - type: Tweak
+      message: >-
+        Expanded salvage magnet offer details for wrecks and debris, and added
+        missing claim button localization.
+    - type: Fix
+      message: >-
+        Prevented space biome text display TimeSpan overflow crashes on invalid
+        or empty text input.
+  id: 28
+  time: '2026-04-17T20:12:25.0000000+00:00'
+  url: https://github.com/6th-Maroon-Division/Monolith/pull/76
