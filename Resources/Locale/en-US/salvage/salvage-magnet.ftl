@@ -6,6 +6,8 @@ salvage-asteroid-name = Asteroid
 
 salvage-magnet-window-title = Salvage magnet
 salvage-expedition-window-progression = Progression
+offering-window-claim = Claim
+offering-window-claimed = Claimed
 
 salvage-magnet-resources = {$resource ->
     [OreIron] Iron
@@ -33,6 +35,9 @@ salvage-magnet-resources-count = {$count ->
 
 # Debris
 salvage-magnet-debris-ChunkDebris = Space debris
+salvage-magnet-debris-desc-class = Class:
+salvage-magnet-debris-desc-origin = Origin:
+salvage-magnet-debris-origin-generic = Orbital wreckage
 
 # Asteroids
 dungeon-config-proto-BlobAsteroid = Asteroid clump
@@ -42,7 +47,9 @@ dungeon-config-proto-SwissCheeseAsteroid = Asteroid fragments
 
 # Wrecks
 salvage-map-wreck = Salvage wreck
+salvage-map-wreck-desc-designation = Wreck:
 salvage-map-wreck-desc-size = Size:
+salvage-map-wreck-desc-map = Source:
 salvage-map-wreck-size-small = [color=lime]Small[/color]
 salvage-map-wreck-size-medium = [color=cornflowerblue]Medium[/color]
 salvage-map-wreck-size-large = [color=orchid]Large[/color]
