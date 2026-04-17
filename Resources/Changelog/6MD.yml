@@ -345,3 +345,12 @@ Entries:
   id: 29
   time: '2026-04-17T20:12:34.0000000+00:00'
   url: https://github.com/6th-Maroon-Division/Monolith/pull/74
+- author: chilla55
+  changes:
+    - type: Fix
+      message: >-
+        Fixed shuttle autopilot activation from console targeting and restored
+        autopilot functionality after storing/retrieving ships.
+  id: 30
+  time: '2026-04-17T21:25:34.0000000+00:00'
+  url: https://github.com/6th-Maroon-Division/Monolith/pull/77
