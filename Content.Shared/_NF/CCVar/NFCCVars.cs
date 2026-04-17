@@ -144,9 +144,10 @@ public sealed class NFCCVars
 
     /// <summary>
     /// Whether expedition planet maps should always use a breathable atmosphere.
+    /// Replicated so client mission previews can display the effective air/temperature correctly.
     /// </summary>
     public static readonly CVarDef<bool> SalvageExpeditionBreathableAtmos =
-        CVarDef.Create("nf14.salvage.expedition_breathable_atmos", true, CVar.SERVERONLY);
+        CVarDef.Create("nf14.salvage.expedition_breathable_atmos", true, CVar.SERVER | CVar.REPLICATED);
 
     /*
      * Smuggling
