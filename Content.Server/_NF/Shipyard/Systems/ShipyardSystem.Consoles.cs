@@ -50,6 +50,9 @@ using Content.Shared._NF.ShuttleRecords;
 using Content.Server.StationEvents.Components;
 using Content.Shared._Mono.Company;
 using Content.Shared.Forensics.Components;
+using Content.Server.NPC;
+using Content.Server.NPC.HTN;
+using Content.Server.NPC.Systems;
 using Content.Shared.Shuttles.Components;
 using Robust.Shared.Player;
 using Robust.Server.Player;
@@ -97,6 +100,7 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
     [Dependency] private readonly MaterialStorageSystem _materialStorage = default!;
     [Dependency] private readonly MechSystem _mech = default!;
     [Dependency] private readonly NodeGroupSystem _nodeGroups = default!;
+    [Dependency] private readonly NPCSystem _npc = default!;
     [Dependency] private readonly UseDelaySystem _useDelay = default!;
 
     private static readonly ProtoId<TagPrototype> CrewedShuttleTag = "CrewedShuttle";
@@ -124,8 +128,26 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
         _docking.ResyncGridDockAirlocks(gridUid);
         _mech.ResyncGridMechs(gridUid);
         _materialStorage.ResyncGridMaterialStorage(gridUid);
+        ResyncGridAutopilotControllers(gridUid);
         _useDelay.ExpireGridUseDelays(gridUid);
         ResyncGridItemCooldowns(gridUid);
+    }
+
+    /// <summary>
+    /// Rebinds shuttle-console HTN controllers to their live entity UIDs after snapshot restore.
+    /// The serialized blackboard can retain pre-storage owner UIDs, which breaks autopilot steering.
+    /// </summary>
+    private void ResyncGridAutopilotControllers(EntityUid gridUid)
+    {
+        var htnQuery = EntityQueryEnumerator<HTNComponent, ShuttleConsoleComponent, TransformComponent>();
+        while (htnQuery.MoveNext(out var uid, out var htn, out _, out var xform))
+        {
+            if (!IsEntityOnGrid(uid, gridUid, xform))
+                continue;
+
+            htn.Blackboard.SetValue(NPCBlackboard.Owner, uid);
+            _npc.WakeNPC(uid, htn);
+        }
     }
 
     /// <summary>
