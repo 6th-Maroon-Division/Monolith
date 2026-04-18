@@ -303,6 +303,14 @@
 
 - type: entity
   parent: DefaultStationBeaconMedical
+  id: DefaultStationBeaconATUWing
+  suffix: ATU wing
+  components:
+  - type: NavMapBeacon
+    text: ATU wing
+
+- type: entity
+  parent: DefaultStationBeaconMedical
   id: DefaultStationBeaconSurgery
   suffix: Surgery
   components:
