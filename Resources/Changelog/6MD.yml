@@ -354,3 +354,24 @@ Entries:
   id: 30
   time: '2026-04-17T21:25:34.0000000+00:00'
   url: https://github.com/6th-Maroon-Division/Monolith/pull/77
+- author: chilla55
+  changes:
+    - type: Fix
+      message: >-
+        Station map beacons with explicit text labels now correctly appear on
+        the navmap.
+    - type: Fix
+      message: Hestia Factory cargo request console now populates orders correctly.
+    - type: Add
+      message: Added ATU Wing navmap beacon to the Medical Dispatch POI.
+    - type: Add
+      message: Added cryo sleep pod to the Hestia Factory break room.
+    - type: Tweak
+      message: Replaced north cargo telepads on Hestia Factory with crate machines.
+    - type: Tweak
+      message: >-
+        Plant Manager PDA now uses the senior engineer sprite; Plant Technician
+        PDA uses the engineer sprite.
+  id: 31
+  time: '2026-04-18T23:25:52.0000000+00:00'
+  url: https://github.com/6th-Maroon-Division/Monolith/pull/80
