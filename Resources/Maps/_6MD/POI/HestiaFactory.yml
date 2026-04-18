@@ -5,7 +5,7 @@ meta:
   forkId: ""
   forkVersion: ""
   time: 04/14/2026 22:31:18
-  entityCount: 4342
+  entityCount: 4347
 maps: []
 grids:
 - 2
@@ -8984,12 +8984,12 @@ entities:
       powerLoad: 5
     - type: Battery
       startingCharge: 0
-- proto: ComputerShipyard
+- proto: ComputerRadar
   entities:
   - uid: 4119
     components:
     - type: Transform
-      rot: -1.5707963267948966 rad
+      rot: 1.5707963267948966 rad
       pos: 19.5,5.5
       parent: 2
     - type: ApcPowerReceiver
@@ -8999,8 +8999,30 @@ entities:
   - uid: 4120
     components:
     - type: Transform
-      rot: 1.5707963267948966 rad
+      rot: -1.5707963267948966 rad
       pos: -18.5,5.5
+      parent: 2
+    - type: ApcPowerReceiver
+      powerLoad: 5
+    - type: Battery
+      startingCharge: 0
+- proto: ComputerShipyard
+  entities:
+  - uid: 4349
+    components:
+    - type: Transform
+      rot: 1.5707963267948966 rad
+      pos: -17.5,5.5
+      parent: 2
+    - type: ApcPowerReceiver
+      powerLoad: 5
+    - type: Battery
+      startingCharge: 0
+  - uid: 4350
+    components:
+    - type: Transform
+      rot: -1.5707963267948966 rad
+      pos: 18.5,5.5
       parent: 2
     - type: ApcPowerReceiver
       powerLoad: 5
@@ -9107,40 +9129,263 @@ entities:
     - type: Transform
       pos: -37.5,5.5
       parent: 2
+    - type: NavMapBeacon
+      text: Transit 1
   - uid: 4153
     components:
     - type: Transform
       pos: -37.5,46.5
       parent: 2
+    - type: NavMapBeacon
+      text: Gas buy dock 1
   - uid: 4154
     components:
     - type: Transform
       pos: -37.5,-40.5
       parent: 2
+    - type: NavMapBeacon
+      text: Gas sell dock 1
   - uid: 4155
     components:
     - type: Transform
       pos: 38.5,-40.5
       parent: 2
+    - type: NavMapBeacon
+      text: Gas sell dock 2
   - uid: 4156
     components:
     - type: Transform
       pos: 38.5,5.5
       parent: 2
+    - type: NavMapBeacon
+      text: Transit 2
   - uid: 4157
     components:
     - type: Transform
       pos: 38.5,46.5
       parent: 2
+    - type: NavMapBeacon
+      text: Gas buy dock 2
   - uid: 4218
     components:
     - type: Transform
       pos: 17.5,5.5
       parent: 2
+    - type: NavMapBeacon
+      text: Cargobay 2
   - uid: 4219
     components:
     - type: Transform
       pos: -16.5,5.5
+      parent: 2
+    - type: NavMapBeacon
+      text: Cargobay 1
+  - uid: 6000
+    components:
+    - type: Transform
+      pos: 0.5,45.5
+      parent: 2
+    - type: NavMapBeacon
+      text: Particle Accelerator
+- proto: PoweredlightLED
+  entities:
+  - uid: 6001
+    components:
+    - type: Transform
+      rot: 3.141592653589793 rad
+      pos: -2.5,43.5
+      parent: 2
+  - uid: 6002
+    components:
+    - type: Transform
+      rot: 3.141592653589793 rad
+      pos: 3.5,43.5
+      parent: 2
+  - uid: 6003
+    components:
+    - type: Transform
+      rot: -1.5707963267948966 rad
+      pos: -3.5,42.5
+      parent: 2
+  - uid: 6004
+    components:
+    - type: Transform
+      rot: 1.5707963267948966 rad
+      pos: 4.5,42.5
+      parent: 2
+  - uid: 6005
+    components:
+    - type: Transform
+      rot: -1.5707963267948966 rad
+      pos: -3.5,35.5
+      parent: 2
+  - uid: 6006
+    components:
+    - type: Transform
+      rot: 1.5707963267948966 rad
+      pos: 4.5,35.5
+      parent: 2
+- proto: CableApcExtension
+  entities:
+  - uid: 6012
+    components:
+    - type: Transform
+      pos: -2.5,42.5
+      parent: 2
+  - uid: 6013
+    components:
+    - type: Transform
+      pos: -1.5,42.5
+      parent: 2
+  - uid: 6014
+    components:
+    - type: Transform
+      pos: -0.5,42.5
+      parent: 2
+  - uid: 6015
+    components:
+    - type: Transform
+      pos: 0.5,42.5
+      parent: 2
+  - uid: 6016
+    components:
+    - type: Transform
+      pos: 1.5,42.5
+      parent: 2
+  - uid: 6017
+    components:
+    - type: Transform
+      pos: 2.5,42.5
+      parent: 2
+  - uid: 6018
+    components:
+    - type: Transform
+      pos: 3.5,42.5
+      parent: 2
+  - uid: 6019
+    components:
+    - type: Transform
+      pos: -2.5,41.5
+      parent: 2
+  - uid: 6020
+    components:
+    - type: Transform
+      pos: 0.5,41.5
+      parent: 2
+  - uid: 6021
+    components:
+    - type: Transform
+      pos: 3.5,41.5
+      parent: 2
+  - uid: 6022
+    components:
+    - type: Transform
+      pos: -2.5,40.5
+      parent: 2
+  - uid: 6023
+    components:
+    - type: Transform
+      pos: -1.5,40.5
+      parent: 2
+  - uid: 6024
+    components:
+    - type: Transform
+      pos: -0.5,40.5
+      parent: 2
+  - uid: 6025
+    components:
+    - type: Transform
+      pos: 0.5,40.5
+      parent: 2
+  - uid: 6026
+    components:
+    - type: Transform
+      pos: 1.5,40.5
+      parent: 2
+  - uid: 6027
+    components:
+    - type: Transform
+      pos: 2.5,40.5
+      parent: 2
+  - uid: 6028
+    components:
+    - type: Transform
+      pos: 3.5,40.5
+      parent: 2
+  - uid: 6029
+    components:
+    - type: Transform
+      pos: -2.5,39.5
+      parent: 2
+  - uid: 6030
+    components:
+    - type: Transform
+      pos: 3.5,39.5
+      parent: 2
+  - uid: 6031
+    components:
+    - type: Transform
+      pos: -2.5,38.5
+      parent: 2
+  - uid: 6032
+    components:
+    - type: Transform
+      pos: 3.5,38.5
+      parent: 2
+  - uid: 6033
+    components:
+    - type: Transform
+      pos: -2.5,37.5
+      parent: 2
+  - uid: 6034
+    components:
+    - type: Transform
+      pos: 3.5,37.5
+      parent: 2
+  - uid: 6035
+    components:
+    - type: Transform
+      pos: -2.5,36.5
+      parent: 2
+  - uid: 6036
+    components:
+    - type: Transform
+      pos: 3.5,36.5
+      parent: 2
+  - uid: 6038
+    components:
+    - type: Transform
+      pos: -2.5,35.5
+      parent: 2
+  - uid: 6039
+    components:
+    - type: Transform
+      pos: -1.5,35.5
+      parent: 2
+  - uid: 6040
+    components:
+    - type: Transform
+      pos: -0.5,35.5
+      parent: 2
+  - uid: 6041
+    components:
+    - type: Transform
+      pos: 0.5,35.5
+      parent: 2
+  - uid: 6042
+    components:
+    - type: Transform
+      pos: 1.5,35.5
+      parent: 2
+  - uid: 6043
+    components:
+    - type: Transform
+      pos: 2.5,35.5
+      parent: 2
+  - uid: 6044
+    components:
+    - type: Transform
+      pos: 3.5,35.5
       parent: 2
 - proto: DefaultStationBeaconCERoom
   entities:
@@ -9159,7 +9404,7 @@ entities:
       pos: 0.5,10.5
       parent: 2
     - type: NavMapBeacon
-      text: TEG
+      text: Factory Floor
 - proto: DefaultStationBeaconFrontierBreakRoom
   entities:
   - uid: 3513
@@ -9195,6 +9440,13 @@ entities:
 - proto: DogBed
   entities:
   - uid: 599
+    components:
+    - type: Transform
+      pos: 7.5,-2.5
+      parent: 2
+- proto: NFVendingMachineCart
+  entities:
+  - uid: 4353
     components:
     - type: Transform
       pos: 7.5,-0.5
@@ -10089,12 +10341,16 @@ entities:
       rot: -1.5707963267948966 rad
       pos: -39.5,5.5
       parent: 2
+    - type: Docking
+      name: T-1
   - uid: 1499
     components:
     - type: Transform
       rot: 1.5707963267948966 rad
       pos: 40.5,5.5
       parent: 2
+    - type: Docking
+      name: T-2
 - proto: GasMinerNitrogenStationLarge
   entities:
   - uid: 3559
@@ -16628,12 +16884,16 @@ entities:
       rot: -1.5707963267948966 rad
       pos: -39.5,46.5
       parent: 2
+    - type: Docking
+      name: B-1
   - uid: 4339
     components:
     - type: Transform
       rot: 1.5707963267948966 rad
       pos: 40.5,46.5
       parent: 2
+    - type: Docking
+      name: B-2
 - proto: GasSaleConsole
   entities:
   - uid: 4340
@@ -16684,12 +16944,16 @@ entities:
       rot: -1.5707963267948966 rad
       pos: -39.5,-40.5
       parent: 2
+    - type: Docking
+      name: S-1
   - uid: 4342
     components:
     - type: Transform
       rot: 1.5707963267948966 rad
       pos: 40.5,-40.5
       parent: 2
+    - type: Docking
+      name: S-2
 - proto: GasValve
   entities:
   - uid: 294
@@ -24855,6 +25119,18 @@ entities:
     components:
     - type: Transform
       pos: -17.5,17.5
+      parent: 2
+- proto: VendingMachineFuelVend
+  entities:
+  - uid: 4351
+    components:
+    - type: Transform
+      pos: -12.5,0.5
+      parent: 2
+  - uid: 4352
+    components:
+    - type: Transform
+      pos: 13.5,0.5
       parent: 2
 - proto: VendingMachineYouToolPOI
   entities:

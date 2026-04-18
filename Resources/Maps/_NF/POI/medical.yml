@@ -12320,13 +12320,13 @@ entities:
     - type: Transform
       pos: -4.5,31.5
       parent: 1
+- proto: DefaultStationBeaconATUWing
+  entities:
   - uid: 1531
     components:
     - type: Transform
       pos: 0.5,39.5
       parent: 1
-    - type: NavMapBeacon
-      text: ATU wing
 - proto: DefaultStationBeaconBar
   entities:
   - uid: 1532
