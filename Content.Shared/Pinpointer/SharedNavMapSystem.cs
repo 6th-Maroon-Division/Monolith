@@ -73,7 +73,7 @@ public abstract class SharedNavMapSystem : EntitySystem
             return false;
 
         var name = component.Text;
-        if (string.IsNullOrEmpty(name))
+        if (string.IsNullOrWhiteSpace(name))
             name = meta.EntityName;
 
         beaconData = new NavMapBeacon(meta.NetEntity, component.Color, name, xform.LocalPosition);

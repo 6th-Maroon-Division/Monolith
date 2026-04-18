@@ -457,12 +457,12 @@
     appearanceDataInit:
       enum.PdaVisuals.PdaType:
         !type:String
-        pda-planttechnician
+        pda-engineer
   - type: PdaBorderColor
     borderColor: "#949137"
     accentVColor: "#A32D26"
   - type: Icon
-    state: pda-planttechnician
+    state: pda-engineer
 
 - type: entity
   parent: BasePDA
@@ -476,11 +476,13 @@
     appearanceDataInit:
       enum.PdaVisuals.PdaType:
         !type:String
-        pda-plantmanager
+        pda-seniorengineer
   - type: PdaBorderColor
     borderColor: "#949137"
-    accentVColor: "#A32D26"
+    accentVColor: "#CD6900"
     accentHColor: "#447987"
+  - type: Icon
+    state: pda-seniorengineer
   - type: CartridgeLoader
     preinstalled:
     - CrewManifestCartridge
