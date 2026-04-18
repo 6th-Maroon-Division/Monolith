@@ -8677,15 +8677,17 @@ entities:
     - type: Transform
       pos: -16.5,7.5
       parent: 2
-  - uid: 4133
-    components:
-    - type: Transform
-      pos: -16.5,9.5
-      parent: 2
   - uid: 4134
     components:
     - type: Transform
       pos: 17.5,7.5
+      parent: 2
+- proto: CrateMachine
+  entities:
+  - uid: 4133
+    components:
+    - type: Transform
+      pos: -16.5,9.5
       parent: 2
   - uid: 4135
     components:
