@@ -20,6 +20,10 @@
       weight: 0.0075
     - id: WallRockSandUranium
       weight: 0.01
+    - id: WallRockCerenkite
+      weight: 0.004
+    - id: WallRockBohrum
+      weight: 0.003
 
 - type: entity
   id: MonoPlanetmapOreSand
@@ -60,6 +64,10 @@
       weight: 0.0075
     - id: WallRockSnowUranium
       weight: 0.01
+    - id: WallRockCerenkite
+      weight: 0.004
+    - id: WallRockBohrum
+      weight: 0.003
 
 - type: entity
   id: MonoPlanetmapOreSnow
@@ -100,6 +108,10 @@
       weight: 0.0075
     - id: WallRockChromiteUranium
       weight: 0.01
+    - id: WallRockCerenkite
+      weight: 0.006
+    - id: WallRockBohrum
+      weight: 0.004
 
 - type: entity
   id: MonoPlanetmapOreChromite
@@ -140,6 +152,10 @@
       weight: 0.0075
     - id: WallRockBasaltUranium
       weight: 0.01
+    - id: WallRockCerenkite
+      weight: 0.006
+    - id: WallRockBohrum
+      weight: 0.004
 
 - type: entity
   id: MonoPlanetmapOreBasalt
@@ -180,6 +196,10 @@
       weight: 0.0075
     - id: WallRockUranium
       weight: 0.01
+    - id: WallRockCerenkite
+      weight: 0.005
+    - id: WallRockBohrum
+      weight: 0.003
 
 - type: entity
   id: MonoPlanetmapOreBase

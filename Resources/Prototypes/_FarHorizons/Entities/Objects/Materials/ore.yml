@@ -1,0 +1,65 @@
+- type: entity
+  parent: OreBase
+  id: CerenkiteOre
+  name: cerenkite ore
+  suffix: Full
+  components:
+  - type: Stack
+    stackType: CerenkiteOre
+  - type: Sprite
+    state: uranium
+  - type: Material
+  - type: PhysicalComposition
+    materialComposition:
+      Cerenkite: 100
+  - type: Item
+    heldPrefix: uranium
+
+- type: entity
+  parent: CerenkiteOre
+  id: CerenkiteOre1
+  suffix: Single
+  components:
+  - type: Stack
+    count: 1
+
+- type: entity
+  parent: CerenkiteOre
+  id: CerenkiteOre5
+  suffix: Five
+  components:
+  - type: Stack
+    count: 5
+
+- type: entity
+  parent: OreBase
+  id: BohrumOre
+  name: bohrum ore
+  suffix: Full
+  components:
+  - type: Stack
+    stackType: BohrumOre
+  - type: Sprite
+    state: iron
+  - type: Material
+  - type: PhysicalComposition
+    materialComposition:
+      Bohrum: 100
+  - type: Item
+    heldPrefix: iron
+
+- type: entity
+  parent: BohrumOre
+  id: BohrumOre1
+  suffix: Single
+  components:
+  - type: Stack
+    count: 1
+
+- type: entity
+  parent: BohrumOre
+  id: BohrumOre5
+  suffix: Five
+  components:
+  - type: Stack
+    count: 5

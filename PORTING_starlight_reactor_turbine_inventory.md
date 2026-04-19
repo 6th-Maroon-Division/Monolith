@@ -1,0 +1,243 @@
+# Starlight -> 6MD Reactor + Gas Turbine Port Inventory
+
+Date: 2026-04-19
+
+## Discovery Summary
+- Missing files detected in 6MD for this feature set: 193
+- Core code files missing: 31
+- Prototype files missing: 22
+- Textures missing: 128
+- Locale files missing: 5
+- Guidebook files missing: 4
+- Audio files missing in initial sweep: 4
+- Additional audio dependencies found in code: 6
+
+## Critical Functional Dependencies
+- Monitor consoles (reactor + turbine)
+- Device linking ports (source/sink)
+- Reactor/turbine entities and prefabs
+- Reactor parts and turbine part recipes
+- Nuclear fabricator + nuclear centrifuge machine boards
+- Research unlocks for all above
+
+## Material IDs used by reactor/turbine content
+- Core alloys/materials: Steel, Gold, Silver, Brass, Plasteel, Glass, PlasmaGlass, Diamond
+- Reactor-specific/special: Bohrum, Cerenkite, Uranium, Plutonium, Bananium, Plasma, UraniumGlass, Meaterial
+
+## Material blocker check in 6MD
+- Missing entirely in 6MD search: Bohrum, Cerenkite, Plutonium
+- Present in 6MD search: Steel, Gold, Silver, Brass, Plasteel, Glass, PlasmaGlass, Diamond, Uranium, Bananium, Plasma, UraniumGlass, Meaterial
+
+## Additional explicit audio dependencies from code
+- Resources/Audio/_FarHorizons/Effects/engine_grump1.ogg
+- Resources/Audio/_FarHorizons/Effects/engine_grump2.ogg
+- Resources/Audio/_FarHorizons/Effects/engine_grump3.ogg
+- Resources/Audio/_FarHorizons/Machines/alarm_beep.ogg
+- Resources/Audio/_FarHorizons/Ambience/Objects/bad_bearing.ogg
+- Resources/Audio/_FarHorizons/Machines/relay_click.ogg
+
+## Starlight-specific overrides to review
+- Resources/Prototypes/_Starlight/Entities/Structures/Power/Generation/FissionGenerator/gas_turbine.yml
+- Resources/Prototypes/_Starlight/Entities/Structures/Power/Generation/FissionGenerator/nuclear_reactor.yml
+- Resources/Prototypes/_Starlight/Entities/Objects/Devices/flatpack.yml
+- Resources/Prototypes/_Starlight/Catalog/Fills/Crates/engineering.yml
+
+## Known integration references in Starlight content
+- Reactor/turbine monitor consoles are defined in _FarHorizons computer prototypes and linked via _FarHorizons device-linking sink/source ports.
+- Flatpacks and crate entries in _Starlight point to empty turbine/reactor prefab variants.
+- Research unlocks for machine/computer boards and part recipes are in _FarHorizons research and recipe pack prototypes.
+
+## Full missing-file list
+- Content.Client/_FarHorizons/Power/Generation/FissionGenerator/NuclearReactorSystem.cs
+- Content.Client/_FarHorizons/Power/Generation/FissionGenerator/ReactorPartSystem.cs
+- Content.Client/_FarHorizons/Power/UI/GasTurbineBoundUserInterface.cs
+- Content.Client/_FarHorizons/Power/UI/GasTurbineWindow.xaml
+- Content.Client/_FarHorizons/Power/UI/GasTurbineWindow.xaml.cs
+- Content.Client/_FarHorizons/Power/UI/NuclearReactorBoundUserInterface.cs
+- Content.Client/_FarHorizons/Power/UI/NuclearReactorWindow.xaml
+- Content.Client/_FarHorizons/Power/UI/NuclearReactorWindow.xaml.cs
+- Content.Server/_FarHorizons/Power/Generation/FissionGenerator/GasTurbineMonitorSystem.cs
+- Content.Server/_FarHorizons/Power/Generation/FissionGenerator/GasTurbineSystem.cs
+- Content.Server/_FarHorizons/Power/Generation/FissionGenerator/NuclearCentrifugeComponent.cs
+- Content.Server/_FarHorizons/Power/Generation/FissionGenerator/NuclearCentrifugeSystem.cs
+- Content.Server/_FarHorizons/Power/Generation/FissionGenerator/NuclearReactorMonitorSystem.cs
+- Content.Server/_FarHorizons/Power/Generation/FissionGenerator/NuclearReactorSystem.cs
+- Content.Server/_FarHorizons/Power/Generation/FissionGenerator/ReactorPartSystem.CVars.cs
+- Content.Server/_FarHorizons/Power/Generation/FissionGenerator/ReactorPartSystem.Item.cs
+- Content.Server/_FarHorizons/Power/Generation/FissionGenerator/ReactorPartSystem.cs
+- Content.Shared/_FarHorizons/CCVar/FHCCVars.Reactor.cs
+- Content.Shared/_FarHorizons/Power/Generation/FissionGenerator/GasTurbineComponent.cs
+- Content.Shared/_FarHorizons/Power/Generation/FissionGenerator/GasTurbineMonitorComponent.cs
+- Content.Shared/_FarHorizons/Power/Generation/FissionGenerator/GasTurbinePartComponent.cs
+- Content.Shared/_FarHorizons/Power/Generation/FissionGenerator/NuclearReactorComponent.cs
+- Content.Shared/_FarHorizons/Power/Generation/FissionGenerator/NuclearReactorMonitorComponent.cs
+- Content.Shared/_FarHorizons/Power/Generation/FissionGenerator/NuclearReactorPrefabPrototype.cs
+- Content.Shared/_FarHorizons/Power/Generation/FissionGenerator/ReactorPartComponent.cs
+- Content.Shared/_FarHorizons/Power/Generation/FissionGenerator/SharedGasTurbineComponent.cs
+- Content.Shared/_FarHorizons/Power/Generation/FissionGenerator/SharedGasTurbineVisuals.cs
+- Content.Shared/_FarHorizons/Power/Generation/FissionGenerator/SharedNuclearCentrifugeVisuals.cs
+- Content.Shared/_FarHorizons/Power/Generation/FissionGenerator/SharedNuclearReactorComponent.cs
+- Content.Shared/_FarHorizons/Power/Generation/FissionGenerator/SharedNuclearReactorVisuals.cs
+- Resources/Audio/_FarHorizons/Ambience/Objects/turbine_room.ogg
+- Resources/Audio/_FarHorizons/Machines/reactor_alarm_1.ogg
+- Resources/Audio/_FarHorizons/Machines/reactor_alarm_2.ogg
+- Resources/Audio/_FarHorizons/Machines/reactor_alarm_3.ogg
+- Resources/Locale/en-US/_FarHorizons/fission-generator/gas-turbine.ftl
+- Resources/Locale/en-US/_FarHorizons/fission-generator/nuclear-centrifuge.ftl
+- Resources/Locale/en-US/_FarHorizons/fission-generator/nuclear-reactor.ftl
+- Resources/Locale/en-US/_FarHorizons/fission-generator/reactor-part.ftl
+- Resources/Locale/en-US/_FarHorizons/research/technologies.ftl
+- Resources/Prototypes/_FarHorizons/Catalog/Fills/Crates/reactor_crates.yml
+- Resources/Prototypes/_FarHorizons/DeviceLinking/sink_ports.yml
+- Resources/Prototypes/_FarHorizons/DeviceLinking/source_ports.yml
+- Resources/Prototypes/_FarHorizons/Entities/Effects/gas_turbine_effects.yml
+- Resources/Prototypes/_FarHorizons/Entities/Effects/nuclear_reactor_effects.yml
+- Resources/Prototypes/_FarHorizons/Entities/Objects/Devices/Circuitboards/Machine/nuclear_machines.yml
+- Resources/Prototypes/_FarHorizons/Entities/Objects/Devices/Circuitboards/computer.yml
+- Resources/Prototypes/_FarHorizons/Entities/Objects/Devices/flatpack.yml
+- Resources/Prototypes/_FarHorizons/Entities/Objects/Devices/holoprojectors.yml
+- Resources/Prototypes/_FarHorizons/Entities/Objects/Power/FissionGenerator/gas_turbine_parts.yml
+- Resources/Prototypes/_FarHorizons/Entities/Objects/Power/FissionGenerator/reactor_parts.yml
+- Resources/Prototypes/_FarHorizons/Entities/Structures/Machines/nuclear_centrifuge.yml
+- Resources/Prototypes/_FarHorizons/Entities/Structures/Machines/nuclear_fabricator.yml
+- Resources/Prototypes/_FarHorizons/Entities/Structures/Power/Generation/FissionGenerator/gas_turbine.yml
+- Resources/Prototypes/_FarHorizons/Entities/Structures/Power/Generation/FissionGenerator/nuclear_reactor.yml
+- Resources/Prototypes/_FarHorizons/Entities/Structures/Power/Generation/FissionGenerator/nuclear_reactor_prefabs.yml
+- Resources/Prototypes/_FarHorizons/Recipes/Lathes/Packs/engineering.yml
+- Resources/Prototypes/_FarHorizons/Recipes/Lathes/computer_boards.yml
+- Resources/Prototypes/_FarHorizons/Recipes/Lathes/gas_turbine_parts.yml
+- Resources/Prototypes/_FarHorizons/Recipes/Lathes/machine_boards.yml
+- Resources/Prototypes/_FarHorizons/Recipes/Lathes/reactor_parts.yml
+- Resources/Prototypes/_FarHorizons/Research/industrial.yml
+- Resources/ServerInfo/_FarHorizons/Guidebook/Engineering/GasTurbine.xml
+- Resources/ServerInfo/_FarHorizons/Guidebook/Engineering/NuclearGenerator.xml
+- Resources/ServerInfo/_FarHorizons/Guidebook/Engineering/NuclearMaterials.xml
+- Resources/ServerInfo/_FarHorizons/Guidebook/Engineering/NuclearReactor.xml
+- Resources/Textures/_FarHorizons/Interface/FissionGenerator/cargo_icons.rsi/meta.json
+- Resources/Textures/_FarHorizons/Interface/FissionGenerator/cargo_icons.rsi/reactor.png
+- Resources/Textures/_FarHorizons/Interface/FissionGenerator/cargo_icons.rsi/turbine.png
+- Resources/Textures/_FarHorizons/Interface/FissionGenerator/gas_turbine_parts/blade.png
+- Resources/Textures/_FarHorizons/Interface/FissionGenerator/gas_turbine_parts/stator.png
+- Resources/Textures/_FarHorizons/Interface/FissionGenerator/indicator_lamps/amberdim.png
+- Resources/Textures/_FarHorizons/Interface/FissionGenerator/indicator_lamps/amberlit.png
+- Resources/Textures/_FarHorizons/Interface/FissionGenerator/indicator_lamps/bluedim.png
+- Resources/Textures/_FarHorizons/Interface/FissionGenerator/indicator_lamps/bluelit.png
+- Resources/Textures/_FarHorizons/Interface/FissionGenerator/indicator_lamps/reddim.png
+- Resources/Textures/_FarHorizons/Interface/FissionGenerator/indicator_lamps/redlit.png
+- Resources/Textures/_FarHorizons/Interface/FissionGenerator/reactor_part_inserted/arrow_down.png
+- Resources/Textures/_FarHorizons/Interface/FissionGenerator/reactor_part_inserted/arrow_left.png
+- Resources/Textures/_FarHorizons/Interface/FissionGenerator/reactor_part_inserted/arrow_right.png
+- Resources/Textures/_FarHorizons/Interface/FissionGenerator/reactor_part_inserted/arrow_up.png
+- Resources/Textures/_FarHorizons/Interface/FissionGenerator/reactor_part_inserted/base.png
+- Resources/Textures/_FarHorizons/Interface/FissionGenerator/reactor_part_inserted/control.png
+- Resources/Textures/_FarHorizons/Interface/FissionGenerator/reactor_part_inserted/fuel.png
+- Resources/Textures/_FarHorizons/Interface/FissionGenerator/reactor_part_inserted/gas.png
+- Resources/Textures/_FarHorizons/Interface/FissionGenerator/reactor_part_inserted/heat.png
+- Resources/Textures/_FarHorizons/Objects/Power/FissionGenerator/gas_turbine_parts.rsi/meta.json
+- Resources/Textures/_FarHorizons/Objects/Power/FissionGenerator/gas_turbine_parts.rsi/turbine_blade.png
+- Resources/Textures/_FarHorizons/Objects/Power/FissionGenerator/gas_turbine_parts.rsi/turbine_stator.png
+- Resources/Textures/_FarHorizons/Objects/Power/FissionGenerator/nuclear_debris.rsi/graphite_damaged_0.png
+- Resources/Textures/_FarHorizons/Objects/Power/FissionGenerator/nuclear_debris.rsi/graphite_damaged_0_mirrored.png
+- Resources/Textures/_FarHorizons/Objects/Power/FissionGenerator/nuclear_debris.rsi/graphite_damaged_1.png
+- Resources/Textures/_FarHorizons/Objects/Power/FissionGenerator/nuclear_debris.rsi/graphite_damaged_1_mirrored.png
+- Resources/Textures/_FarHorizons/Objects/Power/FissionGenerator/nuclear_debris.rsi/graphite_damaged_2.png
+- Resources/Textures/_FarHorizons/Objects/Power/FissionGenerator/nuclear_debris.rsi/graphite_damaged_2_mirrored.png
+- Resources/Textures/_FarHorizons/Objects/Power/FissionGenerator/nuclear_debris.rsi/graphite_damaged_3.png
+- Resources/Textures/_FarHorizons/Objects/Power/FissionGenerator/nuclear_debris.rsi/graphite_damaged_3_mirrored.png
+- Resources/Textures/_FarHorizons/Objects/Power/FissionGenerator/nuclear_debris.rsi/graphite_damaged_4.png
+- Resources/Textures/_FarHorizons/Objects/Power/FissionGenerator/nuclear_debris.rsi/graphite_damaged_4_mirrored.png
+- Resources/Textures/_FarHorizons/Objects/Power/FissionGenerator/nuclear_debris.rsi/meta.json
+- Resources/Textures/_FarHorizons/Objects/Power/FissionGenerator/reactor_parts.rsi/default_rod.png
+- Resources/Textures/_FarHorizons/Objects/Power/FissionGenerator/reactor_parts.rsi/icon.png
+- Resources/Textures/_FarHorizons/Objects/Power/FissionGenerator/reactor_parts.rsi/meta.json
+- Resources/Textures/_FarHorizons/Objects/Power/FissionGenerator/reactor_parts.rsi/nuclear_waste.png
+- Resources/Textures/_FarHorizons/Structures/Machines/nuclear_centrifuge.rsi/centrifuge.png
+- Resources/Textures/_FarHorizons/Structures/Machines/nuclear_centrifuge.rsi/centrifuge_onlight.png
+- Resources/Textures/_FarHorizons/Structures/Machines/nuclear_centrifuge.rsi/centrifuge_process.png
+- Resources/Textures/_FarHorizons/Structures/Machines/nuclear_centrifuge.rsi/centrifuge_processfull.png
+- Resources/Textures/_FarHorizons/Structures/Machines/nuclear_centrifuge.rsi/meta.json
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/gas_turbine.rsi/meta.json
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/gas_turbine.rsi/static.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/gas_turbine.rsi/turbine.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/gas_turbine.rsi/turbine_smoke.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/gas_turbine.rsi/turbine_sparks.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/gas_turbine.rsi/turbinebroken.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/gas_turbine.rsi/turbinerun.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/gas_turbine.rsi/turbinerun_00.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/gas_turbine.rsi/turbinerun_01.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/gas_turbine.rsi/turbinerun_02.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/gas_turbine.rsi/turbinerun_03.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/gas_turbine.rsi/turbinerun_04.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/gas_turbine.rsi/turbinerun_05.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/gas_turbine.rsi/turbinerun_06.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/gas_turbine.rsi/turbinerun_07.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/gas_turbine.rsi/turbinerun_08.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/gas_turbine.rsi/turbinerun_09.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/gas_turbine.rsi/turbinerun_10.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/gas_turbine.rsi/turbinerun_11.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/nuclear_reactor.rsi/meta.json
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/nuclear_reactor.rsi/reactor.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/nuclear_reactor.rsi/reactor_fire.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/nuclear_reactor.rsi/reactor_gas_input_lights.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/nuclear_reactor.rsi/reactor_gas_output_lights.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/nuclear_reactor.rsi/reactor_lights_meltdown.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/nuclear_reactor.rsi/reactor_lights_warning.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/nuclear_reactor.rsi/reactor_smoke.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/nuclear_reactor.rsi/reactor_status_active.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/nuclear_reactor.rsi/reactor_status_meltdown.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/nuclear_reactor.rsi/reactor_status_overheat.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/nuclear_reactor.rsi/reactorbroken.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/reactor_component_cap.rsi/base_cap.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/reactor_component_cap.rsi/control_cap.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/reactor_component_cap.rsi/control_cap_melted_1.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/reactor_component_cap.rsi/control_cap_melted_2.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/reactor_component_cap.rsi/control_cap_melted_3.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/reactor_component_cap.rsi/control_cap_melted_4.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/reactor_component_cap.rsi/empty_cap.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/reactor_component_cap.rsi/fuel_cap.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/reactor_component_cap.rsi/fuel_cap_melted_1.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/reactor_component_cap.rsi/fuel_cap_melted_2.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/reactor_component_cap.rsi/fuel_cap_melted_3.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/reactor_component_cap.rsi/fuel_cap_melted_4.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/reactor_component_cap.rsi/gas_cap.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/reactor_component_cap.rsi/gas_cap_melted_1.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/reactor_component_cap.rsi/gas_cap_melted_2.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/reactor_component_cap.rsi/gas_cap_melted_3.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/reactor_component_cap.rsi/gas_cap_melted_4.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/reactor_component_cap.rsi/heat_cap.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/reactor_component_cap.rsi/heat_cap_melted_1.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/reactor_component_cap.rsi/heat_cap_melted_2.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/reactor_component_cap.rsi/heat_cap_melted_3.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/reactor_component_cap.rsi/heat_cap_melted_4.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/reactor_component_cap.rsi/meta.json
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/small_gas_turbine.rsi/meta.json
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/small_gas_turbine.rsi/static.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/small_gas_turbine.rsi/turbine.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/small_gas_turbine.rsi/turbine_smoke.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/small_gas_turbine.rsi/turbine_sparks.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/small_gas_turbine.rsi/turbinebroken.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/small_gas_turbine.rsi/turbinerun.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/small_gas_turbine.rsi/turbinerun_00.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/small_gas_turbine.rsi/turbinerun_01.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/small_gas_turbine.rsi/turbinerun_02.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/small_gas_turbine.rsi/turbinerun_03.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/small_gas_turbine.rsi/turbinerun_04.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/small_gas_turbine.rsi/turbinerun_05.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/small_gas_turbine.rsi/turbinerun_06.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/small_gas_turbine.rsi/turbinerun_07.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/small_gas_turbine.rsi/turbinerun_08.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/small_gas_turbine.rsi/turbinerun_09.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/small_gas_turbine.rsi/turbinerun_10.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/small_gas_turbine.rsi/turbinerun_11.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/small_nuclear_reactor.rsi/meta.json
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/small_nuclear_reactor.rsi/reactor.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/small_nuclear_reactor.rsi/reactor_fire.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/small_nuclear_reactor.rsi/reactor_gas_input_lights.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/small_nuclear_reactor.rsi/reactor_gas_output_lights.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/small_nuclear_reactor.rsi/reactor_lights_meltdown.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/small_nuclear_reactor.rsi/reactor_lights_warning.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/small_nuclear_reactor.rsi/reactor_smoke.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/small_nuclear_reactor.rsi/reactor_status_active.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/small_nuclear_reactor.rsi/reactor_status_meltdown.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/small_nuclear_reactor.rsi/reactor_status_overheat.png
+- Resources/Textures/_FarHorizons/Structures/Power/Generation/FissionGenerator/small_nuclear_reactor.rsi/reactorbroken.png

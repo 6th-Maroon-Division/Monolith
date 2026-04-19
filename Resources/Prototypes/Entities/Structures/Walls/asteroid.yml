@@ -305,6 +305,52 @@
     currentOre: OreUraniumCrab
 
 - type: entity
+  id: AsteroidRockCerenkite
+  parent: NFAsteroidRockOre
+  description: An ore vein rich with cerenkite.
+  suffix: Cerenkite
+  components:
+  - type: OreVein
+    oreChance: 1.0
+    currentOre: NFOreCerenkite
+  - type: Sprite
+    layers:
+    - state: rock_asteroid
+    - map: [ "enum.EdgeLayer.South" ]
+      state: rock_asteroid_south
+    - map: [ "enum.EdgeLayer.East" ]
+      state: rock_asteroid_east
+    - map: [ "enum.EdgeLayer.North" ]
+      state: rock_asteroid_north
+    - map: [ "enum.EdgeLayer.West" ]
+      state: rock_asteroid_west
+    - state: rock_uranium
+      map: [ "enum.MiningScannerVisualLayers.Overlay" ]
+
+- type: entity
+  id: AsteroidRockBohrum
+  parent: NFAsteroidRockOre
+  description: An ore vein rich with bohrum.
+  suffix: Bohrum
+  components:
+  - type: OreVein
+    oreChance: 1.0
+    currentOre: NFOreBohrum
+  - type: Sprite
+    layers:
+    - state: rock_asteroid
+    - map: [ "enum.EdgeLayer.South" ]
+      state: rock_asteroid_south
+    - map: [ "enum.EdgeLayer.East" ]
+      state: rock_asteroid_east
+    - map: [ "enum.EdgeLayer.North" ]
+      state: rock_asteroid_north
+    - map: [ "enum.EdgeLayer.West" ]
+      state: rock_asteroid_west
+    - state: rock_tin
+      map: [ "enum.MiningScannerVisualLayers.Overlay" ]
+
+- type: entity
   id: AsteroidRockBananium
   parent: NFAsteroidRockOre # Frontier: AsteroidRock<NFAsteroidRockOre
   description: An ore vein rich with bananium.
@@ -1004,6 +1050,66 @@
     - map: [ "enum.EdgeLayer.West" ]
       state: rock_west
     - state: rock_uranium
+      map: [ "enum.MiningScannerVisualLayers.Overlay" ]
+
+- type: entity
+  id: WallRockCerenkite
+  parent: NFWallRockOre
+  description: An ore vein rich with cerenkite.
+  suffix: Cerenkite
+  components:
+  - type: EntityRemap
+    mask:
+      AsteroidRock: AsteroidRockCerenkite
+      WallRockBasalt: WallRockBasaltUranium
+      WallRockChromite: WallRockChromiteUranium
+      WallRockSand: WallRockSandUranium
+      WallRockSnow: WallRockSnowUranium
+  - type: OreVein
+    oreChance: 1.0
+    currentOre: NFOreCerenkite
+  - type: Sprite
+    layers:
+    - state: rock
+    - map: [ "enum.EdgeLayer.South" ]
+      state: rock_south
+    - map: [ "enum.EdgeLayer.East" ]
+      state: rock_east
+    - map: [ "enum.EdgeLayer.North" ]
+      state: rock_north
+    - map: [ "enum.EdgeLayer.West" ]
+      state: rock_west
+    - state: rock_uranium
+      map: [ "enum.MiningScannerVisualLayers.Overlay" ]
+
+- type: entity
+  id: WallRockBohrum
+  parent: NFWallRockOre
+  description: An ore vein rich with bohrum.
+  suffix: Bohrum
+  components:
+  - type: EntityRemap
+    mask:
+      AsteroidRock: AsteroidRockBohrum
+      WallRockBasalt: WallRockBasaltTin
+      WallRockChromite: WallRockChromiteTin
+      WallRockSand: WallRockSandTin
+      WallRockSnow: WallRockSnowTin
+  - type: OreVein
+    oreChance: 1.0
+    currentOre: NFOreBohrum
+  - type: Sprite
+    layers:
+    - state: rock
+    - map: [ "enum.EdgeLayer.South" ]
+      state: rock_south
+    - map: [ "enum.EdgeLayer.East" ]
+      state: rock_east
+    - map: [ "enum.EdgeLayer.North" ]
+      state: rock_north
+    - map: [ "enum.EdgeLayer.West" ]
+      state: rock_west
+    - state: rock_tin
       map: [ "enum.MiningScannerVisualLayers.Overlay" ]
 
 

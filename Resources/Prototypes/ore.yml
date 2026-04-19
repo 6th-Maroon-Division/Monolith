@@ -59,6 +59,18 @@
   maxOreYield: 2
 
 - type: ore
+  id: OreCerenkite
+  oreEntity: CerenkiteOre1
+  minOreYield: 1
+  maxOreYield: 2
+
+- type: ore
+  id: OreBohrum
+  oreEntity: BohrumOre1
+  minOreYield: 1
+  maxOreYield: 2
+
+- type: ore
   id: OreDiamond
   oreEntity: DiamondOre1
   minOreYield: 1
@@ -100,6 +112,8 @@
     OrePlasma: 4
     OreSilver: 1
     OreUranium: 1
+    OreCerenkite: 0.35
+    OreBohrum: 0.2
     OreBananium: 0.5
     OreArtifactFragment: 0.5
 
