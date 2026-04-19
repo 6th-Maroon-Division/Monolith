@@ -224,6 +224,10 @@
     #   weight: 0.0002
     - id: NFWallIceBluespace
       weight: 0.001
+    - id: WallRockCerenkite
+      weight: 0.002
+    - id: WallRockBohrum
+      weight: 0.0015
     - id: IceElementalSpawner
       weight: 0.007
 
@@ -508,6 +512,10 @@
     #   weight: 0.0005
     - id: NFWallBasaltCobblebrickBluespace
       weight: 0.0005
+    - id: WallRockCerenkite
+      weight: 0.005
+    - id: WallRockBohrum
+      weight: 0.003
     - id: BasaltCobblebrickElementalSpawner
       weight: 0.005
 
@@ -652,6 +660,10 @@
     #   weight: 0.0002
     - id: NFWallSandstoneBluespace
       weight: 0.0002
+    - id: WallRockCerenkite
+      weight: 0.002
+    - id: WallRockBohrum
+      weight: 0.0015
     - id: SandstoneCobblebrickElementalSpawner
       weight: 0.008
 
@@ -796,6 +808,10 @@
     #   weight: 0.0005
     - id: NFWallChromiteCobblebrickBluespace
       weight: 0.00025
+    - id: WallRockCerenkite
+      weight: 0.006
+    - id: WallRockBohrum
+      weight: 0.004
     - id: ChromiteCobblebrickElementalSpawner
       weight: 0.005
 
