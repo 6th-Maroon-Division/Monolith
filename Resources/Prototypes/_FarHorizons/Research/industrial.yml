@@ -6,6 +6,7 @@
     state: default_rod
   discipline: Industrial
   tier: 1
+  position: 2, 9
   cost: 7500
   recipeUnlocks:
   - NuclearFabricatorMachineCircuitboard
@@ -37,6 +38,7 @@
     state: nuclear_waste
   discipline: Industrial
   tier: 2
+  position: 2, 10
   cost: 12500
   recipeUnlocks:
   - NuclearCentrifugeMachineCircuitboard
