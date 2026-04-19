@@ -375,3 +375,10 @@ Entries:
   id: 31
   time: '2026-04-18T23:25:52.0000000+00:00'
   url: https://github.com/6th-Maroon-Division/Monolith/pull/80
+- author: chilla55
+  changes:
+    - type: Fix
+      message: Cutter machines can now be connected to material silos.
+  id: 32
+  time: '2026-04-19T00:33:09.0000000+00:00'
+  url: https://github.com/6th-Maroon-Division/Monolith/pull/82
