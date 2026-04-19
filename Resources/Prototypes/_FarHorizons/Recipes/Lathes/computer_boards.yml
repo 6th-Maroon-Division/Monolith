@@ -1,4 +1,11 @@
 - type: latheRecipe
+  abstract: true
+  id: BaseEngineeringComputerRecipeCategory
+  categories:
+  - Computers
+  - Engineering
+
+- type: latheRecipe
   parent: [ BaseCircuitboardRecipe, BaseEngineeringComputerRecipeCategory ]
   id: NuclearReactorMonitorComputerCircuitboard
   result: NuclearReactorMonitorComputerCircuitboard

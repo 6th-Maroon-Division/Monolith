@@ -34,26 +34,6 @@
     neutronCrossSection: 1.0
     thermalCrossSection: 10
     thermalMass: 420000 # specific heat capacity of steel (420 J/KgK) * mass of component (1000Kg)
-  - type: Edible # Blame Abby for making them edible
-    transferAmount: null
-    delay: 30
-    forceFeedDelay: 60
-  - type: FlavorProfile
-    flavors:
-      - metal
-      - electrons
-  - type: BadFood
-  - type: SolutionContainerManager
-    solutions:
-      food:
-        reagents:
-        - ReagentId: Uranium
-          Quantity: 800
-        - ReagentId: Radium
-          Quantity: 200
-        canReact: false
-  - type: StealTarget
-    stealGroup: ReactorFuelRodSteal
   - type: SentienceTarget
     flavorKind: station-event-random-sentience-flavor-inanimate
     weight: 0.2
@@ -206,8 +186,6 @@
     name: ghost-role-information-plutonium-rod-name
     description: ghost-role-information-plutonium-rod-description
     rules: ghost-role-information-plutonium-rod-rules
-    mindRoles:
-    - MindRoleGhostRoleFreeAgentHarmless
   - type: GhostTakeoverAvailable
   - type: SentienceTarget
     weight: 2

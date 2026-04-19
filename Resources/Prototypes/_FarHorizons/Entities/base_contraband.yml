@@ -1,0 +1,19 @@
+# FarHorizons port stubs - these fill in contraband base entities that are
+# commented out upstream in base_contraband.yml.
+
+- type: entity
+  id: BaseRestrictedContraband
+  abstract: true
+  components:
+  - type: Contraband
+    severity: Restricted
+    allowedDepartments: []
+    allowedJobs: []
+
+- type: entity
+  id: BaseEngineeringContraband
+  parent: BaseRestrictedContraband
+  abstract: true
+  components:
+  - type: Contraband
+    allowedDepartments: [ Engineering ]

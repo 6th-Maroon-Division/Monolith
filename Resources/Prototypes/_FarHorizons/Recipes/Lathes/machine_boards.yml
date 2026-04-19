@@ -1,4 +1,11 @@
 - type: latheRecipe
+  abstract: true
+  id: BaseEngineeringMachineRecipeCategory
+  categories:
+  - Machines
+  - Engineering
+
+- type: latheRecipe
   parent: [ BaseCircuitboardRecipe, BaseEngineeringMachineRecipeCategory ]
   id: NuclearFabricatorMachineCircuitboard
   result: NuclearFabricatorMachineCircuitboard
