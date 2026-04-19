@@ -860,6 +860,7 @@
       - RawMaterial
       - Plastic
       - Ingot # Frontier
+  - type: OreSiloClient
 
 # Shitmed Change Start
 - type: entity
