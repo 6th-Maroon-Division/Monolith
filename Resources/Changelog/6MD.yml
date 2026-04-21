@@ -382,3 +382,12 @@ Entries:
   id: 32
   time: '2026-04-19T00:33:09.0000000+00:00'
   url: https://github.com/6th-Maroon-Division/Monolith/pull/82
+- author: chilla55
+  changes:
+    - type: Fix
+      message: >-
+        Fixed persistent anchored ship snapshots failing to save when looping
+        lathes reached the end of their queue.
+  id: 33
+  time: '2026-04-21T17:11:43.0000000+00:00'
+  url: https://github.com/6th-Maroon-Division/Monolith/pull/86
