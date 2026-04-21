@@ -241,7 +241,7 @@ namespace Content.Server.Lathe
                 return false;
 
             // Frontier: queue up a batch
-            if (component.Queue.Count > 0 && component.Queue[^1].Recipe.ID == recipe.ID)
+            if (component.Queue.Count > 0 && component.Queue[^1].Recipe == recipe.ID)
                 component.Queue[^1].ItemsRequested += quantity;
             else
                 component.Queue.Add(new LatheRecipeBatch(recipe, 0, quantity,
@@ -267,7 +267,7 @@ namespace Content.Server.Lathe
             // Frontier: handle batches
             var batch = component.Queue.First();
             var actor = batch.Actor; // Mono: Adds actor
-            var recipe = batch.Recipe;
+            var recipe = _proto.Index(batch.Recipe);
             // <Mono> - resources now consumed as the production goes
             if (!CanProduce(uid, recipe, 1, component))
             {
@@ -388,7 +388,9 @@ namespace Content.Server.Lathe
             if (!Resolve(uid, ref component))
                 return;
 
-            var producing = component.CurrentRecipe ?? component.Queue.FirstOrDefault()?.Recipe; // Frontier: add ?.Recipe
+            LatheRecipePrototype? producing = component.CurrentRecipe;
+            if (producing == null && component.Queue.FirstOrDefault() is { } queued)
+                producing = _proto.Index(queued.Recipe);
 
             var state = new LatheUpdateState(GetAvailableRecipes(uid, component), component.Queue, producing, component.Loop, component.SkipBad); // Mono
             _uiSys.SetUiState(uid, LatheUiKey.Key, state);

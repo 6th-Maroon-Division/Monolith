@@ -5,6 +5,7 @@ using Content.Shared.Research.Prototypes;
 using Robust.Shared.Audio;
 using Robust.Shared.GameStates;
 using Robust.Shared.Prototypes;
+using Robust.Shared.Serialization;
 
 namespace Content.Shared.Lathe
 {
@@ -178,24 +179,39 @@ namespace Content.Shared.Lathe
     }
 
     // Frontier: batch lathe recipes
-    [Serializable]
+    [DataDefinition, Serializable, NetSerializable]
     public sealed partial class LatheRecipeBatch
     {
         private static int NextIndex = 0; // Mono
+        [DataField]
         public int Index; // Mono - for de-queuing recipes to work properly
-        public LatheRecipePrototype Recipe;
+        [DataField]
+        public ProtoId<LatheRecipePrototype> Recipe;
+        [DataField]
         public NetEntity? Actor; // Mono - Log the person who queued the recipe.
+        [DataField]
         public int ItemsPrinted;
+        [DataField]
         public int ItemsRequested;
 
         public LatheRecipeBatch(LatheRecipePrototype recipe, int itemsPrinted, int itemsRequested,
             NetEntity? actor) // Mono
         {
-            Recipe = recipe;
+            Recipe = recipe.ID;
             ItemsPrinted = itemsPrinted;
             ItemsRequested = itemsRequested;
             Actor = actor; // Mono
             Index = NextIndex++; // Mono
+        }
+
+        public LatheRecipeBatch(ProtoId<LatheRecipePrototype> recipe, int itemsPrinted, int itemsRequested,
+            NetEntity? actor)
+        {
+            Recipe = recipe;
+            ItemsPrinted = itemsPrinted;
+            ItemsRequested = itemsRequested;
+            Actor = actor;
+            Index = NextIndex++;
         }
     }
     // End Frontier

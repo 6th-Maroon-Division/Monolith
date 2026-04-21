@@ -316,6 +316,11 @@ public sealed partial class LatheMenu : FancyWindow
         return new Control();
     }
 
+    public Control GetRecipeDisplayControl(ProtoId<LatheRecipePrototype> recipe)
+    {
+        return GetRecipeDisplayControl(_prototypeManager.Index(recipe));
+    }
+
     private void OnItemSelected(OptionButton.ItemSelectedEventArgs obj)
     {
         FilterOption.SelectId(obj.Id);
