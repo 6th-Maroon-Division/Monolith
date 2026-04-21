@@ -398,3 +398,12 @@ Entries:
   id: 34
   time: '2026-04-21T17:21:09.0000000+00:00'
   url: https://github.com/6th-Maroon-Division/Monolith/pull/87
+- author: chilla55
+  changes:
+    - type: Fix
+      message: >-
+        Fixed ship chemical dispensers losing their beaker slot after the ship
+        is stored and restored.
+  id: 35
+  time: '2026-04-21T17:37:11.0000000+00:00'
+  url: https://github.com/6th-Maroon-Division/Monolith/pull/88
