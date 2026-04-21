@@ -391,3 +391,10 @@ Entries:
   id: 33
   time: '2026-04-21T17:11:43.0000000+00:00'
   url: https://github.com/6th-Maroon-Division/Monolith/pull/86
+- author: chilla55
+  changes:
+    - type: Fix
+      message: Fixed uniform printers not being linkable to material silos.
+  id: 34
+  time: '2026-04-21T17:21:09.0000000+00:00'
+  url: https://github.com/6th-Maroon-Division/Monolith/pull/87
