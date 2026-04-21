@@ -255,10 +255,14 @@ namespace Content.Server.Chemistry.EntitySystems
                 var ev = new RefreshPartsEvent { PartRatings = partRatings };
                 RaiseLocalEvent(uid, ev);
             }
+
+            EnsureOutputSlot(uid, component);
         }
 
         private void OnDispenserStartup(EntityUid uid, ReagentDispenserComponent component, ComponentStartup args)
         {
+            EnsureOutputSlot(uid, component);
+
             var slotCount = Math.Max(component.NumSlots, Math.Max(component.StorageSlots.Count, component.StorageSlotIds.Count));
             if (slotCount == 0)
             {
@@ -342,7 +346,7 @@ namespace Content.Server.Chemistry.EntitySystems
             }
             */ // End Frontier: no need to change slots, already done through RefreshParts
 
-            _itemSlotsSystem.AddItemSlot(uid, SharedReagentDispenser.OutputSlotName, component.BeakerSlot);
+            EnsureOutputSlot(uid, component);
 
             // Restore path can deserialize container contents but leave slot registration/state out of sync.
             // Rebuild slot registration from the serialized slot/container data.
@@ -469,6 +473,20 @@ namespace Content.Server.Chemistry.EntitySystems
         private void OnUpgradeExamine(EntityUid uid, ReagentDispenserComponent component, UpgradeExamineEvent args)
         {
             args.AddNumberUpgrade("reagent-dispenser-component-examine-extra-slots", component.NumSlots - component.BaseNumStorageSlots);
+        }
+
+        private void EnsureOutputSlot(EntityUid uid, ReagentDispenserComponent component)
+        {
+            if (_itemSlotsSystem.TryGetSlot(uid, SharedReagentDispenser.OutputSlotName, out var existingSlot))
+            {
+                if (existingSlot.ContainerSlot == null)
+                    _itemSlotsSystem.RebindItemSlot(uid, SharedReagentDispenser.OutputSlotName, existingSlot);
+
+                component.BeakerSlot = existingSlot;
+                return;
+            }
+
+            _itemSlotsSystem.AddItemSlot(uid, SharedReagentDispenser.OutputSlotName, component.BeakerSlot);
         }
         // End Frontier
     }
