@@ -407,3 +407,12 @@ Entries:
   id: 35
   time: '2026-04-21T17:37:11.0000000+00:00'
   url: https://github.com/6th-Maroon-Division/Monolith/pull/88
+- author: chilla55
+  changes:
+    - type: Fix
+      message: >-
+        Fixed ore/material magnet containers on restored persistent ships
+        failing to collect items due to stale serialized scan timers.
+  id: 36
+  time: '2026-04-21T18:11:02.0000000+00:00'
+  url: https://github.com/6th-Maroon-Division/Monolith/pull/89
