@@ -44,7 +44,7 @@ public sealed partial class NuclearReactorComponent : Component
     /// <summary>
     /// Dictionary of the entities all the parts in the component grid belong to
     /// </summary>
-    [AutoNetworkedField]
+    [DataField, AutoNetworkedField]
     public Dictionary<Vector2i, EntityUid> GridEntities = [];
 
     /// <summary>
@@ -62,18 +62,19 @@ public sealed partial class NuclearReactorComponent : Component
     /// <summary>
     /// Number of neutrons that hit the edge of the reactor grid last tick
     /// </summary>
-    [ViewVariables]
+    [DataField, ViewVariables]
     public float RadiationLevel = 0;
 
     /// <summary>
     /// Gas mixture currently in the reactor
     /// </summary>
+    [DataField]
     public GasMixture? AirContents;
 
     /// <summary>
     /// Reactor casing temperature
     /// </summary>
-    [ViewVariables(VVAccess.ReadWrite)]
+    [DataField, ViewVariables(VVAccess.ReadWrite)]
     public float Temperature = Atmospherics.T20C;
 
     /// <summary>
@@ -91,25 +92,25 @@ public sealed partial class NuclearReactorComponent : Component
     /// <summary>
     /// Flag indicating the reactor is overheating
     /// </summary>
-    [ViewVariables, AutoNetworkedField]
+    [DataField, ViewVariables, AutoNetworkedField]
     public bool IsSmoking = false;
 
     /// <summary>
     /// Flag indicating the reactor is on fire
     /// </summary>
-    [ViewVariables, AutoNetworkedField]
+    [DataField, ViewVariables, AutoNetworkedField]
     public bool IsBurning = false;
 
     /// <summary>
     /// Flag indicating total meltdown has happened
     /// </summary>
-    [ViewVariables(VVAccess.ReadWrite), AutoNetworkedField]
+    [DataField, ViewVariables(VVAccess.ReadWrite), AutoNetworkedField]
     public bool Melted = false;
 
     /// <summary>
     /// The set insertion level of the control rods
     /// </summary>
-    [ViewVariables(VVAccess.ReadWrite)]
+    [DataField, ViewVariables(VVAccess.ReadWrite)]
     public float ControlRodInsertion = 2;
 
     /// <summary>
@@ -176,7 +177,7 @@ public sealed partial class NuclearReactorComponent : Component
     /// <summary>
     /// The estimated thermal power the reactor is making
     /// </summary>
-    [ViewVariables(VVAccess.ReadOnly)]
+    [DataField, ViewVariables(VVAccess.ReadOnly)]
     public float ThermalPower = 0;
     public int ThermalPowerCount = 0;
     public int ThermalPowerPrecision = 128;

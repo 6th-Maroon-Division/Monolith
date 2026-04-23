@@ -133,7 +133,10 @@ public sealed class NuclearReactorSystem : EntitySystem
         comp.FluxGrid = new List<ReactorNeutron>[gridWidth, gridHeight];
         comp.NeutronGrid = new int[gridWidth, gridHeight];
 
-        ApplyPrefab(uid, comp);
+        // Restored ships can already contain serialized reactor parts.
+        // Prefer rebuilding from persisted entities and only fall back to prefab initialization.
+        if (!TryRebuildGridFromStoredParts(uid, comp))
+            ApplyPrefab(uid, comp);
 
         // I hate everything about this, but it ensures the audio doesn't just stop if you don't look at it
         comp.AlarmAudioHighThermal = SpawnAttachedTo("ReactorAlarmEntity", new(uid, 0, 0));
@@ -144,6 +147,75 @@ public sealed class NuclearReactorSystem : EntitySystem
     }
 
     #region Prefab
+    private bool TryRebuildGridFromStoredParts(EntityUid uid, NuclearReactorComponent comp)
+    {
+        var hadStoredParts = comp.PartStorage.ContainedEntities.Count > 0;
+        var storedPositions = comp.GridEntities.ToArray();
+
+        comp.GridEntities.Clear();
+
+        // Rebuild any serialized position->entity links first.
+        if (storedPositions.Length > 0)
+        {
+            foreach (var pair in storedPositions)
+            {
+                var pos = pair.Key;
+                var ent = pair.Value;
+
+                if (pos.X < 0 || pos.Y < 0 || pos.X >= comp.ReactorGridWidth || pos.Y >= comp.ReactorGridHeight)
+                    continue;
+
+                if (!_entityManager.TryGetComponent<ReactorPartComponent>(ent, out var reactorPart) ||
+                    !comp.PartStorage.ContainedEntities.Contains(ent))
+                    continue;
+
+                comp.ComponentGrid[pos.X, pos.Y] = new ReactorPartComponent(reactorPart);
+                comp.GridEntities[pos] = ent;
+            }
+        }
+
+        // Legacy snapshots may have parts in storage but no persisted positions.
+        // Fill empty grid slots with remaining stored reactor parts so we don't destroy state.
+        foreach (var ent in comp.PartStorage.ContainedEntities)
+        {
+            if (!_entityManager.TryGetComponent<ReactorPartComponent>(ent, out var reactorPart))
+                continue;
+
+            if (comp.GridEntities.ContainsValue(ent))
+                continue;
+
+            for (var x = 0; x < comp.ReactorGridWidth; x++)
+            {
+                var placed = false;
+                for (var y = 0; y < comp.ReactorGridHeight; y++)
+                {
+                    if (comp.ComponentGrid[x, y] != null)
+                        continue;
+
+                    var pos = new Vector2i(x, y);
+                    comp.ComponentGrid[x, y] = new ReactorPartComponent(reactorPart);
+                    comp.GridEntities[pos] = ent;
+                    placed = true;
+                    break;
+                }
+
+                if (placed)
+                    break;
+            }
+        }
+
+        for (var x = 0; x < comp.ReactorGridWidth; x++)
+        for (var y = 0; y < comp.ReactorGridHeight; y++)
+            comp.FluxGrid[x, y] = [];
+
+        if (!hadStoredParts)
+            return false;
+
+        UpdateGasVolume(comp);
+        UpdateGridVisual((uid, comp));
+        return true;
+    }
+
     private void ApplyPrefab(EntityUid uid, NuclearReactorComponent comp)
     {
         comp.GridEntities.Clear();

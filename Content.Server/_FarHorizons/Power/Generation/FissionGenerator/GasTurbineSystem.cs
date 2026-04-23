@@ -124,8 +124,7 @@ public sealed class GasTurbineSystem : EntitySystem
         _signal.EnsureSourcePorts(uid, comp.SpeedHighPort, comp.SpeedLowPort, comp.TurbineDataPort);
         _signal.EnsureSinkPorts(uid, comp.StatorLoadIncreasePort, comp.StatorLoadDecreasePort);
 
-        TryGetPart(uid, BladeContainer, out comp.CurrentBlade);
-        TryGetPart(uid, StatorContainer, out comp.CurrentStator);
+        RefreshPartLinks(uid, comp);
 
         UpdatePartValues(comp);
 
@@ -145,6 +144,18 @@ public sealed class GasTurbineSystem : EntitySystem
         part = container.ContainedEntities[0];
 
         return true;
+    }
+
+    private void RefreshPartLinks(EntityUid uid, GasTurbineComponent comp)
+    {
+        if (!TryGetPart(uid, BladeContainer, out var blade))
+            blade = null;
+
+        if (!TryGetPart(uid, StatorContainer, out var stator))
+            stator = null;
+
+        comp.CurrentBlade = blade;
+        comp.CurrentStator = stator;
     }
 
     private void OnAnalyze(EntityUid uid, GasTurbineComponent comp, ref GasAnalyzerScanEvent args)
@@ -180,6 +191,8 @@ public sealed class GasTurbineSystem : EntitySystem
     #region Main Loop
     private void OnUpdate(EntityUid uid, GasTurbineComponent comp, ref AtmosDeviceUpdateEvent args)
     {
+        RefreshPartLinks(uid, comp);
+
         var supplier = Comp<PowerSupplierComponent>(uid);
         comp.SupplierMaxSupply = supplier.MaxSupply;
         comp.SupplierLastSupply = supplier.CurrentSupply;
