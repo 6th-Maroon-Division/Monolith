@@ -1,0 +1,61 @@
+- type: entity
+  id: CrateTEGFlatpack
+  parent: CrateEngineeringSecure
+  name: TEG Crate
+  description: A crate containing a flatpacked Thermo-Electric Generator.
+  components:
+  - type: EntityTableContainerFill
+    containers:
+      entity_storage: !type:AllSelector
+        children:
+        - id: TEGCenterFlatpack
+        - id: TEGCirculatorFlatpack
+          amount: 2
+
+- type: entity
+  id: CrateNuclearReactorFlatpack
+  parent: CrateEngineeringSecure
+  name: Nuclear Reactor Crate
+  description: A crate containing a flatpacked Nuclear Reactor. Parts sold Separately.
+  components:
+  - type: EntityTableContainerFill
+    containers:
+      entity_storage: !type:AllSelector
+        children:
+        - id: NuclearReactorFlatpack
+
+- type: entity
+  id: CrateGasTurbineFlatpack
+  parent: CrateEngineeringSecure
+  name: Gas Turbine Crate
+  description: A crate containing a flatpacked Gas Turbine. Parts sold Separately.
+  components:
+  - type: EntityTableContainerFill
+    containers:
+      entity_storage: !type:AllSelector
+        children:
+        - id: GasTurbineFlatpack
+
+- type: entity
+  id: CrateNuclearReactorSmallFlatpack
+  parent: CrateEngineeringSecure
+  name: Small Nuclear Reactor Crate
+  description: A crate containing a flatpacked  Small Nuclear Reactor. Parts sold Separately.
+  components:
+  - type: EntityTableContainerFill
+    containers:
+      entity_storage: !type:AllSelector
+        children:
+        - id: NuclearReactorSmallFlatpack
+
+- type: entity
+  id: CrateGasTurbineSmallFlatpack
+  parent: CrateEngineeringSecure
+  name: Small Gas Turbine Crate
+  description: A crate containing a flatpacked Small Gas Turbine. Parts sold Separately.
+  components:
+  - type: EntityTableContainerFill
+    containers:
+      entity_storage: !type:AllSelector
+        children:
+        - id: GasTurbineSmallFlatpack

@@ -212,6 +212,9 @@ public sealed partial class PersistenceAnchorSystem : EntitySystem
     {
         _suppressShutdownArchival = false;
 
+        if (!_cfg.GetCVar(CCVars.PersistenceAnchorRestoreEnabled))
+            return;
+
         if (_restoredThisRound)
             return;
 

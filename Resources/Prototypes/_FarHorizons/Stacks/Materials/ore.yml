@@ -1,0 +1,13 @@
+- type: stack
+  id: CerenkiteOre
+  name: cerenkite ore
+  icon: { sprite: /Textures/Objects/Materials/ore.rsi, state: uranium }
+  spawn: CerenkiteOre1
+  maxCount: 100
+
+- type: stack
+  id: BohrumOre
+  name: bohrum ore
+  icon: { sprite: /Textures/Objects/Materials/ore.rsi, state: iron }
+  spawn: BohrumOre1
+  maxCount: 100

@@ -106,6 +106,8 @@
     - BananiumOre1
     - DiamondOre1
     - BluespaceOre1
+    - CerenkiteOre1
+    - BohrumOre1
     rareChance: 0.01
 
 - type: entity
@@ -151,6 +153,22 @@
 - type: entity
   parent: UraniumOre
   id: UraniumOre15
+  suffix: Fifteen
+  components:
+  - type: Stack
+    count: 15
+
+- type: entity
+  parent: CerenkiteOre
+  id: CerenkiteOre15
+  suffix: Fifteen
+  components:
+  - type: Stack
+    count: 15
+
+- type: entity
+  parent: BohrumOre
+  id: BohrumOre15
   suffix: Fifteen
   components:
   - type: Stack

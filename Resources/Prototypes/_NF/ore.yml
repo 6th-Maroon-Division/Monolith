@@ -54,6 +54,18 @@
   maxOreYield: 2
 
 - type: ore
+  id: NFOreCerenkite
+  oreEntity: CerenkiteOre5
+  minOreYield: 1
+  maxOreYield: 2
+
+- type: ore
+  id: NFOreBohrum
+  oreEntity: BohrumOre5
+  minOreYield: 1
+  maxOreYield: 2
+
+- type: ore
   id: NFOreBananium
   oreEntity: BananiumOre5
   minOreYield: 1

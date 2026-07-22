@@ -158,6 +158,10 @@
       weight: 0.05
     - id: WallRockSnowUranium
       weight: 0.01
+    - id: WallRockCerenkite
+      weight: 0.004
+    - id: WallRockBohrum
+      weight: 0.003
     - id: WallRockSnowBananium
       weight: 0.005
     - id: WallRockSnowArtifactFragment
@@ -220,6 +224,10 @@
     #   weight: 0.0002
     - id: NFWallIceBluespace
       weight: 0.001
+    - id: WallRockCerenkite
+      weight: 0.002
+    - id: WallRockBohrum
+      weight: 0.0015
     - id: IceElementalSpawner
       weight: 0.007
 
@@ -438,6 +446,10 @@
       weight: 0.1
     - id: WallRockBasaltUranium
       weight: 0.05
+    - id: WallRockCerenkite
+      weight: 0.01
+    - id: WallRockBohrum
+      weight: 0.008
     - id: WallRockBasaltBananium
       weight: 0.005
     - id: WallRockBasaltArtifactFragment
@@ -500,6 +512,10 @@
     #   weight: 0.0005
     - id: NFWallBasaltCobblebrickBluespace
       weight: 0.0005
+    - id: WallRockCerenkite
+      weight: 0.005
+    - id: WallRockBohrum
+      weight: 0.003
     - id: BasaltCobblebrickElementalSpawner
       weight: 0.005
 
@@ -578,6 +594,10 @@
       weight: 0.01
     - id: WallRockSandUranium
       weight: 0.01
+    - id: WallRockCerenkite
+      weight: 0.004
+    - id: WallRockBohrum
+      weight: 0.003
     - id: WallRockSandBananium
       weight: 0.01
     - id: WallRockSandArtifactFragment
@@ -640,6 +660,10 @@
     #   weight: 0.0002
     - id: NFWallSandstoneBluespace
       weight: 0.0002
+    - id: WallRockCerenkite
+      weight: 0.002
+    - id: WallRockBohrum
+      weight: 0.0015
     - id: SandstoneCobblebrickElementalSpawner
       weight: 0.008
 
@@ -718,6 +742,10 @@
       weight: 0.04
     - id: WallRockChromiteUranium
       weight: 0.09
+    - id: WallRockCerenkite
+      weight: 0.012
+    - id: WallRockBohrum
+      weight: 0.009
     - id: WallRockChromiteBananium
       weight: 0.015
     - id: WallRockChromiteArtifactFragment
@@ -780,6 +808,10 @@
     #   weight: 0.0005
     - id: NFWallChromiteCobblebrickBluespace
       weight: 0.00025
+    - id: WallRockCerenkite
+      weight: 0.006
+    - id: WallRockBohrum
+      weight: 0.004
     - id: ChromiteCobblebrickElementalSpawner
       weight: 0.005
 
