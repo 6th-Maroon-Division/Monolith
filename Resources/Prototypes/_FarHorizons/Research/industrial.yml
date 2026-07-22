@@ -38,7 +38,7 @@
     state: nuclear_waste
   discipline: Industrial
   tier: 2
-  position: 2, 10
+  position: 1, 10
   cost: 12500
   recipeUnlocks:
   - NuclearCentrifugeMachineCircuitboard

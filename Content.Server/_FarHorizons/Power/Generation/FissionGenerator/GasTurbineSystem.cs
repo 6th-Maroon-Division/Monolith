@@ -39,9 +39,6 @@ using System.Linq;
 
 namespace Content.Server._FarHorizons.Power.Generation.FissionGenerator;
 
-[Serializable]
-public sealed partial class RepairDoAfterEvent : SimpleDoAfterEvent;
-
 // Ported and modified from goonstation by Jhrushbe.
 // CC-BY-NC-SA-3.0
 // https://github.com/goonstation/goonstation/blob/ff86b044/code/obj/nuclearreactor/turbine.dm

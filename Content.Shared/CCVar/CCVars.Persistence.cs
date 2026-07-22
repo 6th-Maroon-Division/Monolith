@@ -5,6 +5,12 @@ namespace Content.Shared.CCVar;
 public sealed partial class CCVars
 {
     /// <summary>
+    ///     Whether persistence anchor snapshots are restored on map load.
+    /// </summary>
+    public static readonly CVarDef<bool> PersistenceAnchorRestoreEnabled =
+        CVarDef.Create("persistence.anchor_restore_enabled", true, CVar.ARCHIVE | CVar.SERVERONLY);
+
+    /// <summary>
     ///     How often dirty persistence anchors write their grid snapshot to disk.
     /// </summary>
     public static readonly CVarDef<float> PersistenceAnchorAutosaveInterval =

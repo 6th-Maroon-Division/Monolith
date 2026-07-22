@@ -7,7 +7,7 @@
   - type: Sprite
     sprite: Objects/Devices/flatpack.rsi
     layers:
-    - state: large
+    - state: icon-default
   - type: Flatpack
     entity: NuclearReactorEmpty
 
@@ -20,6 +20,6 @@
   - type: Sprite
     sprite: Objects/Devices/flatpack.rsi
     layers:
-    - state: large
+    - state: icon-default
   - type: Flatpack
     entity: GasTurbineEmpty # Starlight Edit: GasTurbineNormal -> GasTurbineEmpty

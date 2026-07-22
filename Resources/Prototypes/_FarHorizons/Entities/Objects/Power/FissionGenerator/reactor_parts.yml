@@ -252,7 +252,7 @@
   components:
   - type: PhysicalComposition
     materialComposition:
-      Steel: 1500
+      Steel: 750
 
 - type: entity
   id: GoldReactorControlRod
