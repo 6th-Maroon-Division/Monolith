@@ -416,3 +416,14 @@ Entries:
   id: 36
   time: '2026-04-21T18:11:02.0000000+00:00'
   url: https://github.com/6th-Maroon-Division/Monolith/pull/89
+- author: chilla55
+  changes:
+    - type: Add
+      message: >-
+        Added gas turbines, nuclear reactors, and their supporting parts,
+        production chain, and guidebooks.
+    - type: Fix
+      message: Fixed reactor restore persistence and guidebook localization issues.
+  id: 37
+  time: '2026-07-22T04:32:48.0000000+00:00'
+  url: https://github.com/6th-Maroon-Division/Monolith/pull/91
