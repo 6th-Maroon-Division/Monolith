@@ -1,5 +1,4 @@
 using Content.Server.Atmos.Components;
-using Content.Server.Atmos.Piping.Unary.Components;
 using Content.Shared._Goobstation.Factory.Filters;
 using Content.Shared.Atmos.Components;
 using Content.Shared.Atmos.Piping.Unary.Components;

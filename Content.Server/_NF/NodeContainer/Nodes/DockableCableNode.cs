@@ -1,5 +1,6 @@
 using Content.Server.Shuttles.Components;
 using Content.Server.Power.Nodes;
+using Content.Shared.NodeContainer;
 using Robust.Shared.Map.Components;
 
 namespace Content.Server.NodeContainer.Nodes;
@@ -12,13 +13,13 @@ namespace Content.Server.NodeContainer.Nodes;
 public sealed partial class DockableCableNode : CableDeviceNode
 {
     public override IEnumerable<Node> GetReachableNodes(
-        TransformComponent xform,
+        Entity<TransformComponent> xform,
         EntityQuery<NodeContainerComponent> nodeQuery,
         EntityQuery<TransformComponent> xformQuery,
-        MapGridComponent? grid,
+        Entity<MapGridComponent>? grid,
         IEntityManager entMan)
     {
-        if (!xform.Anchored || grid == null)
+        if (!xform.Comp.Anchored || grid == null)
             yield break;
 
         if (!entMan.TryGetComponent(Owner, out DockingComponent? docking) ||

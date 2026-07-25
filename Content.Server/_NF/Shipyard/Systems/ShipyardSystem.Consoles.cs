@@ -24,6 +24,7 @@ using Content.Shared.Mobs.Components;
 using Content.Shared.Mobs.Systems;
 using Content.Shared.Maps;
 using Content.Shared.StationRecords;
+using Content.Shared.Station.Components;
 using Content.Server.Chat.Systems;
 using Content.Server.Mind;
 using Content.Server.Preferences.Managers;
@@ -993,7 +994,7 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
             return;
         }
 
-        var targetGrid = _station.GetLargestGrid(stationData);
+        var targetGrid = _station.GetLargestGrid((stationUid, stationData));
         if (targetGrid == null)
         {
             Del(shuttleUid);
@@ -1123,7 +1124,7 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
         if (!TryComp<StationDataComponent>(stationUid, out var stationData))
             return false;
 
-        var targetGrid = _station.GetLargestGrid(stationData);
+        var targetGrid = _station.GetLargestGrid((stationUid, stationData));
         if (targetGrid == null)
             return false;
 

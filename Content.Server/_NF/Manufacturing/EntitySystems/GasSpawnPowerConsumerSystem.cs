@@ -1,6 +1,5 @@
 using Content.Server._NF.Manufacturing.Components;
 using Content.Server.Atmos.EntitySystems;
-using Content.Server.Atmos.Piping.Unary.Components;
 using Content.Server.NodeContainer;
 using Content.Server.NodeContainer.EntitySystems;
 using Content.Server.Power.Components;
@@ -8,6 +7,7 @@ using Content.Server.Power.EntitySystems;
 using Content.Server.Power.Nodes;
 using Content.Shared._NF.Power;
 using Content.Shared.Atmos;
+using Content.Shared.Atmos.Piping.Unary.Components;
 using Content.Shared.Examine;
 using Content.Shared.NodeContainer;
 using Content.Shared.Power;

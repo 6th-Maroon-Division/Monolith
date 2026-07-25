@@ -376,7 +376,6 @@
       - 0.78 # Nitrogen
       temperature: 5273 # ~ 5000 deg C, roughly when plasma turns back into gas
   - type: GasCanister
-    uiInteract: false
     gasMixture:
       volume: 10000 # big tank to store backup
     gasTankSlot:

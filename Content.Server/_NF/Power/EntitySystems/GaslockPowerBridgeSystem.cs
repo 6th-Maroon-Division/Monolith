@@ -7,6 +7,7 @@ using Content.Server.Power.Nodes;
 using Content.Server.Shuttles.Components;
 using Content.Server.Shuttles.Events;
 using Content.Shared.Power;
+using Content.Shared.NodeContainer;
 using System.Diagnostics.CodeAnalysis;
 
 namespace Content.Server._NF.Power.EntitySystems;

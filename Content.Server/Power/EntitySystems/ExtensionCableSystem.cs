@@ -16,8 +16,8 @@ namespace Content.Server.Power.EntitySystems
                 if (Transform(uid).GridUid != gridUid)
                     continue;
 
-                Disconnect(uid, provider);
-                Connect(uid, provider);
+                Disconnect((uid, provider));
+                Connect((uid, provider));
             }
 
             var receiverQuery = EntityQueryEnumerator<ExtensionCableReceiverComponent>();
@@ -26,8 +26,8 @@ namespace Content.Server.Power.EntitySystems
                 if (Transform(uid).GridUid != gridUid)
                     continue;
 
-                Disconnect(uid, receiver);
-                Connect(uid, receiver);
+                Disconnect((uid, receiver));
+                Connect((uid, receiver));
             }
         }
 
@@ -198,7 +198,11 @@ namespace Content.Server.Power.EntitySystems
         /// </summary>
         public void Connect(Entity<ExtensionCableReceiverComponent> receiver)
         {
-            Connect(receiver.Owner, receiver.Comp);
+            receiver.Comp.Connectable = true;
+            if (receiver.Comp.Provider == null)
+            {
+                TryFindAndSetProvider(receiver);
+            }
         }
 
         /// <summary>
@@ -206,10 +210,18 @@ namespace Content.Server.Power.EntitySystems
         /// </summary>
         public void Disconnect(Entity<ExtensionCableReceiverComponent> receiver)
         {
-            Disconnect(receiver.Owner, receiver.Comp);
+            receiver.Comp.Connectable = false;
+            RaiseLocalEvent(receiver, new ProviderDisconnectedEvent(receiver.Comp.Provider), broadcast: false);
+            if (receiver.Comp.Provider != null)
+            {
+                RaiseLocalEvent(receiver.Comp.Provider.Value, new ReceiverDisconnectedEvent(receiver), broadcast: false);
+                receiver.Comp.Provider.Value.Comp.LinkedReceivers.Remove(receiver);
+            }
+
+            receiver.Comp.Provider = null;
         }
 
-        private void OnReceiverStarted(EntityUid uid, ExtensionCableReceiverComponent receiver, ComponentStartup args)
+        private void OnReceiverStarted(Entity<ExtensionCableReceiverComponent> receiver, ref ComponentStartup args)
         {
             if (EntityManager.TryGetComponent(receiver.Owner, out PhysicsComponent? physicsComponent))
             {
@@ -243,28 +255,6 @@ namespace Content.Server.Power.EntitySystems
         {
             Disconnect(receiver);
             Connect(receiver);
-        }
-
-        private void Connect(Entity<ExtensionCableReceiverComponent> receiver)
-        {
-            receiver.Comp.Connectable = true;
-            if (receiver.Comp.Provider == null)
-            {
-                TryFindAndSetProvider(receiver);
-            }
-        }
-
-        private void Disconnect(Entity<ExtensionCableReceiverComponent> receiver)
-        {
-            receiver.Comp.Connectable = false;
-            RaiseLocalEvent(receiver, new ProviderDisconnectedEvent(receiver.Comp.Provider), broadcast: false);
-            if (receiver.Comp.Provider != null)
-            {
-                RaiseLocalEvent(receiver.Comp.Provider.Value, new ReceiverDisconnectedEvent(receiver), broadcast: false);
-                receiver.Comp.Provider.Value.Comp.LinkedReceivers.Remove(receiver);
-            }
-
-            receiver.Comp.Provider = null;
         }
 
         private void TryFindAndSetProvider(Entity<ExtensionCableReceiverComponent> receiver, TransformComponent? xform = null)
