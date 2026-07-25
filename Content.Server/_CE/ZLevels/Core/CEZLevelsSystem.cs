@@ -12,6 +12,7 @@ using JetBrains.Annotations;
 using Robust.Server.GameObjects;
 using Robust.Shared.EntitySerialization.Systems;
 using Robust.Shared.Map.Components;
+using Robust.Shared.Physics.Components;
 
 namespace Content.Server._CE.ZLevels.Core;
 
@@ -23,11 +24,16 @@ public sealed partial class CEZLevelsSystem : CESharedZLevelsSystem
     [Dependency] private MetaDataSystem _meta = default!;
     [Dependency] private StationSystem _station = default!;
 
-    [Dependency] private EntityQuery<MapGridComponent> _mapGridQuery = default!;
+    private EntityQuery<MapGridComponent> _mapGridQuery;
 
     public override void Initialize()
     {
         base.Initialize();
+
+        _mapGridQuery = GetEntityQuery<MapGridComponent>();
+        _zMapQuery = GetEntityQuery<CEZMapComponent>();
+        _zGroundQuery = GetEntityQuery<CEZGroundLayerComponent>();
+        _physQuery = GetEntityQuery<PhysicsComponent>();
 
         InitView();
         InitializeTransit();

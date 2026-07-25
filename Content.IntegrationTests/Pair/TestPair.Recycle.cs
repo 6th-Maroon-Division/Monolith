@@ -3,12 +3,16 @@ using System.IO;
 using System.Linq;
 using Content.Server.GameTicking;
 using Content.Server.Preferences.Managers;
+using Content.Server.Shuttles.Components;
+using Content.Server.Shuttles.Systems;
 using Content.Shared.CCVar;
 using Content.Shared.GameTicking;
 using Content.Shared.Mind;
 using Content.Shared.Mind.Components;
 using Content.Shared.Preferences;
 using Robust.Shared.Player;
+using Robust.Shared.ContentPack;
+using Robust.Shared.Utility;
 
 namespace Content.IntegrationTests.Pair;
 
@@ -19,6 +23,22 @@ public sealed partial class TestPair
     {
         await base.Cleanup();
         await ResetModifiedPreferences();
+        await ResetPersistenceAnchors();
+    }
+
+    private async Task ResetPersistenceAnchors()
+    {
+        await Server.WaitPost(() =>
+        {
+            var persistence = Server.EntMan.System<PersistenceAnchorSystem>();
+            var query = Server.EntMan.EntityQueryEnumerator<PersistenceAnchorComponent>();
+
+            while (query.MoveNext(out var anchor, out _))
+                persistence.RemoveTracking(anchor, out _);
+
+            var userData = Server.ResolveDependency<IResourceManager>().UserData;
+            userData.Delete(new ResPath("/PersistenceAnchors"));
+        });
     }
 
     private async Task ResetModifiedPreferences()

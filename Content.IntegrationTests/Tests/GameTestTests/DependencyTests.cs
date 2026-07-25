@@ -16,7 +16,6 @@ public sealed class DependencyTests : GameTest
 {
     [SidedDependency(Side.Server)] private readonly SharedGameTicker _sGameTicker = null!;
     [SidedDependency(Side.Client)] private readonly SharedGameTicker _cGameTicker = null!;
-    [SidedDependency(Side.Server)] private readonly EntityQuery<TransformComponent> _sXformQuery = default!;
 
     [Test]
     [Description("Asserts that sided dependencies actually grab from the right sides.")]
@@ -44,11 +43,12 @@ public sealed class DependencyTests : GameTest
     }
 
     [Test]
-    [Description("Asserts that query dependencies function")]
-    public async Task QueryDependencies()
+    [Description("Asserts that component queries function")]
+    public async Task ComponentQueries()
     {
         var ent = await Spawn(null);
+        var xformQuery = SEntMan.GetEntityQuery<TransformComponent>();
 
-        Assert.That(_sXformQuery.HasComp(ent), Is.True);
+        Assert.That(xformQuery.HasComp(ent), Is.True);
     }
 }

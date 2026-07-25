@@ -2,6 +2,7 @@ using System.Linq;
 using System.Numerics;
 using System.Transactions;
 using Content.Server.Gatherable;
+using Content.Server.Gatherable.Components;
 using Content.Server.Power.EntitySystems;
 using Content.Shared.Decals;
 using Content.Shared.Maps;
@@ -26,6 +27,12 @@ public partial class ShipDrillSystem : EntitySystem
 
     private float _updateCooldown = 0.25f;
     private float _updateTimer = 0f;
+
+    public override void Initialize()
+    {
+        base.Initialize();
+        _gatherQuery = GetEntityQuery<GatherableComponent>();
+    }
 
     public override void Update(float frameTime)
     {
@@ -101,4 +108,3 @@ public partial class ShipDrillSystem : EntitySystem
         }
     }
 }
-

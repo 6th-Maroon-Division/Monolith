@@ -31,14 +31,14 @@ public sealed partial class ShipSteeringSystem : EntitySystem
     [Dependency] private ShuttleSystem _shuttle = default!;
     [Dependency] private TargetSeekingSystem _seeking = default!;
 
-    [Dependency] private EntityQuery<MapGridComponent> _gridQuery;
-    [Dependency] private EntityQuery<ProjectileGridPhaseComponent> _phaseQuery;
-    [Dependency] private EntityQuery<PhysicsComponent> _physQuery;
-    [Dependency] private EntityQuery<ShuttleComponent> _shuttleQuery;
-    [Dependency] private EntityQuery<ProjectileComponent> _projectileQuery;
-    [Dependency] private EntityQuery<EmpOnTriggerComponent> _empQuery;
-    [Dependency] private EntityQuery<ExplosiveComponent> _explosiveQuery;
-    [Dependency] private EntityQuery<TimedDespawnComponent> _timedQuery;
+    private EntityQuery<MapGridComponent> _gridQuery;
+    private EntityQuery<ProjectileGridPhaseComponent> _phaseQuery;
+    private EntityQuery<PhysicsComponent> _physQuery;
+    private EntityQuery<ShuttleComponent> _shuttleQuery;
+    private EntityQuery<ProjectileComponent> _projectileQuery;
+    private EntityQuery<EmpOnTriggerComponent> _empQuery;
+    private EntityQuery<ExplosiveComponent> _explosiveQuery;
+    private EntityQuery<TimedDespawnComponent> _timedQuery;
 
     private List<Entity<MapGridComponent>> _avoidGrids = new();
     private HashSet<Entity<ShipWeaponProjectileComponent>> _avoidProjs = new();
@@ -51,6 +51,15 @@ public sealed partial class ShipSteeringSystem : EntitySystem
     public override void Initialize()
     {
         base.Initialize();
+
+        _gridQuery = GetEntityQuery<MapGridComponent>();
+        _phaseQuery = GetEntityQuery<ProjectileGridPhaseComponent>();
+        _physQuery = GetEntityQuery<PhysicsComponent>();
+        _shuttleQuery = GetEntityQuery<ShuttleComponent>();
+        _projectileQuery = GetEntityQuery<ProjectileComponent>();
+        _empQuery = GetEntityQuery<EmpOnTriggerComponent>();
+        _explosiveQuery = GetEntityQuery<ExplosiveComponent>();
+        _timedQuery = GetEntityQuery<TimedDespawnComponent>();
 
         SubscribeLocalEvent<ShipSteererComponent, GetShuttleInputsEvent>(OnSteererGetInputs);
         SubscribeLocalEvent<ShipSteererComponent, PilotedShuttleRelayedEvent<StartCollideEvent>>(OnShuttleStartCollide);

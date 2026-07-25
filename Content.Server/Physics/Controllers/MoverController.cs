@@ -30,10 +30,10 @@ public sealed partial class MoverController : SharedMoverController
 
     private Dictionary<EntityUid, (ShuttleComponent, List<(EntityUid, PilotComponent, InputMoverComponent, TransformComponent)>)> _shuttlePilots = new();
 
-    [Dependency] private EntityQuery<ActiveInputMoverComponent> _activeQuery = default!;
-    [Dependency] private EntityQuery<DroneConsoleComponent> _droneQuery = default!;
-    [Dependency] private EntityQuery<ShuttleComponent> _shuttleQuery = default!;
-    [Dependency] private EntityQuery<GhostComponent> _ghostQuery = default!;
+    private EntityQuery<ActiveInputMoverComponent> _activeQuery;
+    private EntityQuery<DroneConsoleComponent> _droneQuery;
+    private EntityQuery<ShuttleComponent> _shuttleQuery;
+    private EntityQuery<GhostComponent> _ghostQuery;
 
     // Not needed for persistence; just used to save an alloc
     private readonly HashSet<EntityUid> _seenMovers = [];
@@ -43,6 +43,11 @@ public sealed partial class MoverController : SharedMoverController
     public override void Initialize()
     {
         base.Initialize();
+
+        _activeQuery = GetEntityQuery<ActiveInputMoverComponent>();
+        _droneQuery = GetEntityQuery<DroneConsoleComponent>();
+        _shuttleQuery = GetEntityQuery<ShuttleComponent>();
+        _ghostQuery = GetEntityQuery<GhostComponent>();
 
         SubscribeLocalEvent<ActiveInputMoverComponent, EntityPausedEvent>(OnEntityPaused);
         SubscribeLocalEvent<InputMoverComponent, EntityUnpausedEvent>(OnEntityUnpaused);

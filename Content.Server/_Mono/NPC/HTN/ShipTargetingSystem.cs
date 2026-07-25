@@ -21,14 +21,16 @@ public sealed partial class ShipTargetingSystem : EntitySystem
     [Dependency] private SharedTransformSystem _transform = default!;
     [Dependency] private TargetSeekingSystem _seeking = default!;
 
-    [Dependency] private EntityQuery<GunComponent> _gunQuery;
-    [Dependency] private EntityQuery<PhysicsComponent> _physQuery;
+    private EntityQuery<GunComponent> _gunQuery;
+    private EntityQuery<PhysicsComponent> _physQuery;
 
     private HashSet<Entity<FireControllableComponent>> _cannons = new();
 
     public override void Initialize()
     {
         base.Initialize();
+        _gunQuery = GetEntityQuery<GunComponent>();
+        _physQuery = GetEntityQuery<PhysicsComponent>();
     }
 
     // have to use this because RT's is broken and unusable for navigation

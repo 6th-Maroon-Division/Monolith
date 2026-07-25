@@ -19,9 +19,9 @@ public sealed partial class CEZLevelsSystem
     [Dependency] private ExplosionSystem _explosion = default!;
     [Dependency] private GravitySystem _grav = default!;
 
-    [Dependency] private EntityQuery<CEZMapComponent> _zMapQuery = default!;
-    [Dependency] private EntityQuery<CEZGroundLayerComponent> _zGroundQuery = default!;
-    [Dependency] private EntityQuery<PhysicsComponent> _physQuery = default!;
+    private EntityQuery<CEZMapComponent> _zMapQuery;
+    private EntityQuery<CEZGroundLayerComponent> _zGroundQuery;
+    private EntityQuery<PhysicsComponent> _physQuery;
 
     private readonly List<Entity<MapGridComponent>> _gravityQueue = new();
 

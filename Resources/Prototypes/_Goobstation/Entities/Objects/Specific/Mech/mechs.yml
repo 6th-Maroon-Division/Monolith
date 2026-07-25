@@ -187,6 +187,13 @@
         - Sheet
       components:
         - ConstructionMaterials
+  - type: ContainerContainer
+    containers:
+      mech-pilot-slot: !type:ContainerSlot
+      mech-equipment-container: !type:Container
+      mech-battery-slot: !type:ContainerSlot
+      paper_label: !type:ContainerSlot
+      storagebase: !type:Container
   - type: Dumpable
     multiplier: 2
   # Mono end

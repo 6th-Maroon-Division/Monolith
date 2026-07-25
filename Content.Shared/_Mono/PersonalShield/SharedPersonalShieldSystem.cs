@@ -15,12 +15,15 @@ public sealed partial class SharedPersonalShieldSystem : EntitySystem
     [Dependency] private INetManager _net = default!;
     [Dependency] private ItemToggleSystem _toggle = default!;
 
-    [Dependency] private EntityQuery<ItemToggleComponent> _itemToggleQuery = default!;
-    [Dependency] private EntityQuery<BatteryComponent> _batteryQuery = default!;
+    private EntityQuery<ItemToggleComponent> _itemToggleQuery;
+    private EntityQuery<BatteryComponent> _batteryQuery;
 
     public override void Initialize()
     {
         base.Initialize();
+
+        _itemToggleQuery = GetEntityQuery<ItemToggleComponent>();
+        _batteryQuery = GetEntityQuery<BatteryComponent>();
 
         SubscribeLocalEvent<PersonalShieldComponent, PersonalShieldActionEvent>(OnAction);
         SubscribeLocalEvent<PersonalShieldComponent, InventoryRelayedEvent<DamageModifyEvent>>(OnDamageModify);

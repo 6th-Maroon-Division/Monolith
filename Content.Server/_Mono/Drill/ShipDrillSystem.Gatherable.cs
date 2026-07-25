@@ -4,7 +4,7 @@ namespace Content.Server._Mono.Drill;
 
 public sealed partial class ShipDrillSystem
 {
-    [Dependency] private EntityQuery<GatherableComponent> _gatherQuery = default!;
+    private EntityQuery<GatherableComponent> _gatherQuery;
 
     public void DrillGatherable(EntityUid drilled, EntityUid drill)
     {

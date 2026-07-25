@@ -5,11 +5,13 @@ namespace Content.Shared._Mono.Weapons.Ranged.Systems;
 
 public sealed partial class ProjectileGridPhaseSystem : EntitySystem
 {
-    [Dependency] private EntityQuery<ProjectileGridPhaseComponent> _phaseQuery;
+    private EntityQuery<ProjectileGridPhaseComponent> _phaseQuery;
 
     public override void Initialize()
     {
         base.Initialize();
+
+        _phaseQuery = GetEntityQuery<ProjectileGridPhaseComponent>();
 
         SubscribeLocalEvent<ProjectileGridPhaseComponent, MapInitEvent>(OnInit);
         SubscribeLocalEvent<ProjectileGridPhaseComponent, PreventCollideEvent>(OnPreventCollide);

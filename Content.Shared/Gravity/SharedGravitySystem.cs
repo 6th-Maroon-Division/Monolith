@@ -17,13 +17,16 @@ public abstract partial class SharedGravitySystem : EntitySystem
 
     public static readonly ProtoId<AlertPrototype> WeightlessAlert = "Weightless";
 
-    [Dependency] protected EntityQuery<GravityComponent> GravityQuery = new();
-    [Dependency] private EntityQuery<GravityAffectedComponent> _weightlessQuery = new();
-    [Dependency] private EntityQuery<PhysicsComponent> _physicsQuery = new();
+    protected EntityQuery<GravityComponent> GravityQuery;
+    private EntityQuery<GravityAffectedComponent> _weightlessQuery;
+    private EntityQuery<PhysicsComponent> _physicsQuery;
 
     public override void Initialize()
     {
         base.Initialize();
+        GravityQuery = GetEntityQuery<GravityComponent>();
+        _weightlessQuery = GetEntityQuery<GravityAffectedComponent>();
+        _physicsQuery = GetEntityQuery<PhysicsComponent>();
         // Grid Gravity
         SubscribeLocalEvent<GridInitializeEvent>(OnGridInit);
         SubscribeLocalEvent<GravityChangedEvent>(OnGravityChange);

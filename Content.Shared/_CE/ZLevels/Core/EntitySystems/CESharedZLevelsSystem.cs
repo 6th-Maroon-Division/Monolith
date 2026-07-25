@@ -35,22 +35,33 @@ public abstract partial class CESharedZLevelsSystem : EntitySystem
     [Dependency] private SharedMapSystem _map = null!;
     [Dependency] private SharedPopupSystem _popup = null!;
 
-    [Dependency] protected EntityQuery<CEZPhysicsComponent> ZPhysicsQuery = default!;
+    protected EntityQuery<CEZPhysicsComponent> ZPhysicsQuery;
 
-    [Dependency] private EntityQuery<MapComponent> _mapQuery = default!;
-    [Dependency] private EntityQuery<MapGridComponent> _gridQuery = default!;
-    [Dependency] private EntityQuery<PhysicsComponent> _physicsQuery = default!;
-    [Dependency] private EntityQuery<TransformComponent> _transformQuery = default!;
+    private EntityQuery<MapComponent> _mapQuery;
+    private EntityQuery<MapGridComponent> _gridQuery;
+    private EntityQuery<PhysicsComponent> _physicsQuery;
+    private EntityQuery<TransformComponent> _transformQuery;
 
-    [Dependency] private EntityQuery<CEZMapComponent> _zMapQuery = default!;
-    [Dependency] private EntityQuery<CEZMapNetworkComponent> _zNetworkQuery = default!;
-    [Dependency] private EntityQuery<CEZLevelHighGroundComponent> _zHighGroundQuery = default!;
+    private EntityQuery<CEZMapComponent> _zMapQuery;
+    private EntityQuery<CEZMapNetworkComponent> _zNetworkQuery;
+    private EntityQuery<CEZLevelHighGroundComponent> _zHighGroundQuery;
 
     private bool _clientSimulation;
 
     public override void Initialize()
     {
         base.Initialize();
+
+        ZPhysicsQuery = GetEntityQuery<CEZPhysicsComponent>();
+        _mapQuery = GetEntityQuery<MapComponent>();
+        _gridQuery = GetEntityQuery<MapGridComponent>();
+        _physicsQuery = GetEntityQuery<PhysicsComponent>();
+        _transformQuery = GetEntityQuery<TransformComponent>();
+        _zMapQuery = GetEntityQuery<CEZMapComponent>();
+        _zNetworkQuery = GetEntityQuery<CEZMapNetworkComponent>();
+        _zHighGroundQuery = GetEntityQuery<CEZLevelHighGroundComponent>();
+        _zGridQuery = GetEntityQuery<CEZGridComponent>();
+        _zGridNetworkQuery = GetEntityQuery<CEZGridNetworkComponent>();
 
         _config.OnValueChanged(CCVars.ZLevelsPhysicsClientSimulation, i => _clientSimulation = i, true);
 
