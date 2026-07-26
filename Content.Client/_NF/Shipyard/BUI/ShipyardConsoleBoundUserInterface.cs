@@ -11,13 +11,14 @@ public sealed class ShipyardConsoleBoundUserInterface : BoundUserInterface
 {
     private ShipyardConsoleMenu? _menu;
     private ShipyardRulesPopup? _rulesWindow;
-    [Dependency] private ShipyardPreviewSystem _preview = default!;
+    private readonly ShipyardPreviewSystem _preview;
     public int Balance { get; private set; }
 
     public int? ShipSellValue { get; private set; }
 
     public ShipyardConsoleBoundUserInterface(EntityUid owner, Enum uiKey) : base(owner, uiKey)
     {
+        _preview = EntMan.System<ShipyardPreviewSystem>();
     }
 
     protected override void Open()

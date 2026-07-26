@@ -6,11 +6,11 @@ namespace Content.Client._Mono.Shipyard.UI;
 public sealed class ShipyardPreviewBoundUserInterface : BoundUserInterface
 {
     private ShipyardPreviewMenu? _menu;
-    [Dependency] private ShipyardPreviewSystem _preview = default!;
+    private readonly ShipyardPreviewSystem _preview;
 
     public ShipyardPreviewBoundUserInterface(EntityUid owner, Enum uiKey) : base(owner, uiKey)
     {
-
+        _preview = EntMan.System<ShipyardPreviewSystem>();
     }
 
     protected override void Open()
