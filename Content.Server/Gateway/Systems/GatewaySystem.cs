@@ -177,7 +177,7 @@ public sealed partial class GatewaySystem : EntitySystem
         if (ev.Cancelled)
             return;
 
-        _linkedEntity.OneWayLink(uid, dest);
+        _linkedEntity.TryLink(uid, dest);
 
         var sourcePortal = EnsureComp<PortalComponent>(uid);
         var targetPortal = EnsureComp<PortalComponent>(dest);
