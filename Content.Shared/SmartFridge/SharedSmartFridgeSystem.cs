@@ -1,5 +1,6 @@
 using Content.Shared.Access.Systems;
 using Content.Shared.Construction.EntitySystems;
+using Content.Shared.Containers;
 using Content.Shared.Hands.EntitySystems;
 using Content.Shared.IdentityManagement;
 using Content.Shared.Interaction;
@@ -29,6 +30,7 @@ public abstract partial class SharedSmartFridgeSystem : EntitySystem
         base.Initialize();
 
         SubscribeLocalEvent<SmartFridgeComponent, InteractUsingEvent>(OnInteractUsing, after: [typeof(AnchorableSystem)]);
+        SubscribeLocalEvent<SmartFridgeComponent, MapInitEvent>(OnMapInit, after: [typeof(ContainerFillSystem)]);
         SubscribeLocalEvent<SmartFridgeComponent, EntInsertedIntoContainerMessage>(OnItemInserted);
         SubscribeLocalEvent<SmartFridgeComponent, EntRemovedFromContainerMessage>(OnItemRemoved);
         SubscribeLocalEvent<SmartFridgeComponent, AfterAutoHandleStateEvent>(OnAfterAutoHandleState);
@@ -43,6 +45,28 @@ public abstract partial class SharedSmartFridgeSystem : EntitySystem
                 sub.Event<SmartFridgeDispenseItemMessage>(OnDispenseItem);
                 sub.Event<SmartFridgeRemoveEntryMessage>(OnRemoveEntry);
             });
+    }
+
+    private void OnMapInit(Entity<SmartFridgeComponent> ent, ref MapInitEvent args)
+    {
+        if (!_container.TryGetContainer(ent, ent.Comp.Container, out var container))
+            return;
+
+        // ContainedEntries is a runtime UI index of network entity IDs. Those IDs are not
+        // stable across map save/load, so rebuild it from the authoritative container.
+        ent.Comp.ContainedEntries.Clear();
+        foreach (var item in container.ContainedEntities)
+        {
+            var key = new SmartFridgeEntry(Identity.Name(item, EntityManager));
+            if (!ent.Comp.Entries.Contains(key))
+                ent.Comp.Entries.Add(key);
+
+            ent.Comp.ContainedEntries.TryAdd(key, new());
+            ent.Comp.ContainedEntries[key].Add(GetNetEntity(item));
+        }
+
+        Dirty(ent);
+        UpdateUI(ent);
     }
 
     private bool DoInsert(Entity<SmartFridgeComponent> ent, EntityUid user, IEnumerable<EntityUid> usedItems, bool playSound)
