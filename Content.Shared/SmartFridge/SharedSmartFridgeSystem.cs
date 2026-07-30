@@ -49,6 +49,11 @@ public abstract partial class SharedSmartFridgeSystem : EntitySystem
 
     private void OnMapInit(Entity<SmartFridgeComponent> ent, ref MapInitEvent args)
     {
+        RebuildContainedEntries(ent);
+    }
+
+    public void RebuildContainedEntries(Entity<SmartFridgeComponent> ent)
+    {
         if (!_container.TryGetContainer(ent, ent.Comp.Container, out var container))
             return;
 

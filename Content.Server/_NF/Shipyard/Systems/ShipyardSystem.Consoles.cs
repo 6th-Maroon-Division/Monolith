@@ -129,6 +129,7 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
         _docking.ResyncGridDockAirlocks(gridUid);
         _mech.ResyncGridMechs(gridUid);
         _materialStorage.ResyncGridMaterialStorage(gridUid);
+        _smartFridge.ResyncGrid(gridUid);
         ResyncGridAutopilotControllers(gridUid);
         _useDelay.ExpireGridUseDelays(gridUid);
         ResyncGridItemCooldowns(gridUid);

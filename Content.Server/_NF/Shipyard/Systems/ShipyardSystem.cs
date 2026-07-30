@@ -7,6 +7,7 @@ using Content.Server.Gravity;
 using Content.Server.Power.EntitySystems;
 using Content.Server.Salvage;
 using Content.Server.Station.Systems;
+using Content.Server.SmartFridge;
 using Content.Shared._NF.Shipyard.Components;
 using Content.Shared._NF.Shipyard;
 using Content.Shared.GameTicking;
@@ -55,6 +56,7 @@ public sealed partial class ShipyardSystem : SharedShipyardSystem
     [Dependency] private readonly ExtensionCableSystem _extensionCables = default!;
     [Dependency] private readonly SalvageSystem _salvage = default!;
     [Dependency] private readonly StationJobsSystem _stationJobs = default!;
+    [Dependency] private readonly SmartFridgeSystem _smartFridge = default!;
 
     public MapId? ShipyardMap { get; private set; }
     private float _shuttleIndex;
